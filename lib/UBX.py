@@ -5,7 +5,7 @@ import serial
 
 from lib import Codici, Utils, MessaggioUBX
 
-BAUD_RATE = 9600  # original was 57600
+BAUD_RATE = 57600
 
 
 # BUFFER_SIZE = pow(2,12)
@@ -50,7 +50,7 @@ class UBX:
 
         try:
             self.serialObj.write(messaggio)
-            sleep(0.01)
+            #sleep(0.01)
         except serial.SerialException as e:
             if (jumpException == False):
                 # TODO: manca la stop async
@@ -375,7 +375,7 @@ class UBX:
         return self.ublox_check_ACK("CFG", "RATE")
 
     # OK
-    def ublox_poll_message(self, ClassLab, MsgIDLab, payload_length, parameter):
+    def ublox_poll_message(self, ClassLab, MsgIDLab, payload_length, parameter=0):
         '''
         Invia la richiesta di messaggio al ricevitore.
         '''
@@ -383,17 +383,20 @@ class UBX:
         # aggiungo la lunghezza
         if (payload_length == 0):
             lunghezzaPayload = 0
-            msg.aggiungiBytes(lunghezzaPayload.to_bytes(2, 'little'))
+            lunghezzaPayload_byte = lunghezzaPayload.to_bytes(2, 'little')
+            msg.aggiungiBytes(lunghezzaPayload_byte)
         else:
             lunghezzaPayload = 1
-            msg.aggiungiBytes(lunghezzaPayload.to_bytes(2, 'little'))
+            lunghezzaPayload_byte = lunghezzaPayload.to_bytes(2, 'little')
+            msg.aggiungiBytes(lunghezzaPayload_byte)
 
             # aggiungo il payload
             # TODO: 1 byte HEX
-            msg.aggiungiBytes(parameter);
+            msg.aggiungiBytes(parameter.to_bytes(1, 'little'));
 
         # calcolo il checksum
-        msg.aggiungiBytes(msg.calcola_checksum())
+        cs = msg.calcola_checksum()
+        msg.aggiungiBytes(cs)
 
         # invio la richiesta e raccolgo la risposta, senza liberare quello che c'è nel buffer!
-        self.send_message(msg.getMessaggio(True), False, True)
+        self.send_message(msg.getMessaggio(True), True, True)

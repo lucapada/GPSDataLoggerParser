@@ -20,18 +20,32 @@ class MessaggioUBX:
         self.messaggio.append(valore)
 
     def aggiungiBytes(self, valore):
-        for b in valore:
-            self.aggiungiByte(b)
+        if(isinstance(valore, bytes)):
+            valore = list(valore)
+        if (isinstance(valore, list)):
+            for v in valore:
+                if(isinstance(v, int)):
+                    v = v.to_bytes(1,'little')
+                self.aggiungiByte(v)
 
     def calcola_checksum(self):
         '''Funzione che calcola il checksum, secondo l'algoritmo indicato nel manuale UBX, ritornando i due bytes da appendere al messaggio'''
         chk_A = 0
         chk_B = 0
 
+        startCK = 2 # devo calcolare il checksum a partire dalla CLASSE (2° byte)
+        k = 0
         for c in self.messaggio:
-            chk_A += int.from_bytes(c, 'little')
-            chk_A &= 0xFF
-            chk_B += chk_A
-            chk_B &= 0xFF
+            if(k >= startCK):
+                cB = int.from_bytes(c, 'little')
+                chk_A += cB
+                chk_A &= 0xFF
+                chk_B += chk_A
+                chk_B &= 0xFF
+            k += 1
+        return [chk_A.to_bytes(1, 'little'), chk_B.to_bytes(1, 'little')]
 
-        return bytes([chk_A, chk_B])
+    # --------------- UBLOX DECODING FUNCTION ---------------
+    # TODO: mettere qui le funzioni per il decoding dei messaggi.
+    #       i messaggi che arrivano sono binari
+
