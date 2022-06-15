@@ -150,6 +150,10 @@ class GNSSParams:
         }
     ]
 
+    def __init__(self, GPS = 0, GLO = 0, GAL = 0, BEI = 0, QZSS = 0, SBAS = 0, IMES = 0):
+        #TODO: implementare metodo
+
+
     def enableGNSS(self, gnssId, enable):
         for gnss in self.GNSS:
             if(gnss["gnssId"] == gnssId):

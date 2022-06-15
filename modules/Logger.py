@@ -1,73 +1,87 @@
 import datetime
 import time
-from time import sleep
-import serial
 
-from lib import Codici, Utils, MessaggioUBX
+from serial.serialutil import SerialException
+from . import SerialParser as ser
+from . import Reporter
+from . import UBXMessage
+from UBXCodes import ublox_UBX_codes
+from .Utils import strfind
 
-BAUD_RATE = 57600
-# BUFFER_SIZE = pow(2,12)
-# MIN_BYTES = 0
 
-class UBX:
+class Logger:
 
-    # --------------- SERIAL METHODS ---------------
-    # OK
-    def __init__(self, serialObj: serial):
-        '''
-        Costruttore della classe. Imposta il serialObj passato come parametro.
-        :param serialObj:
-        '''
-        self.serialObj = serialObj
+    def __init__(self, active_serial: ser.SerialParser, gnss: dict, filePath: str):
+        # --------------------------------------------
+        self._reporter = Reporter()
+        # --------------------------------------------
+        self.serial = active_serial
+        self.is_active = True
 
+    # Continuously log data
+    def logData(self) -> str:
+        # TODO: implementare qui la logica ora in realtime.py
+        # data = ""
+        # while self.is_active:
+        #     try:
+        #         with open(self._logfile, "a") as logfile:
+        #             data = self.serial.getNewData()
+        #             logfile.write(data)
+        #
+        #     # Handle if device disconnected
+        #     except (SerialException, KeyboardInterrupt):
+        #         self.is_active = False
+        #         self.printLoggingMessage(
+        #             f"(THREAD ERROR) Device disconnected, ending thread associated with the logger after closing files...")
+        #
+        # return data
+
+    def printLoggingMessage(self, message:str):
+        self._reporter.printLog(f"[{self.serial.port}]: {message}")
+
+    # --------------- serial FUNCTION ---------------
     # OK
     def open_connection(self):
-        self.serialObj.open()
-
+        self.serial.open()
     # OK
     def serial_close_connect(self):
         '''
         Funzione che chiude e riapre la connessione.
         :return:
         '''
-        COMPort = self.serialObj.name
         try:
-            self.serialObj.close()
-        except serial.SerialException as e:
-            Utils.printLog("Serial error: " + e, COMPort)
-            self.serialObj.close()
+            self.serial.close()
+        except self.serial.SerialException as e:
+            self.printLoggingMessage("Serial error: " + e)
+            self.serial.close()
 
-        self.serialObj = serial.Serial(COMPort, baudrate=BAUD_RATE)
-        self.serialObj.open()
-
+        self.serial.open()
     # OK
     def in_waiting(self):
-        return self.serialObj.in_waiting
-
+        return self.serial.in_waiting
     # OK
     def read(self, howBytes: int):
-        return self.serialObj.read(howBytes)
-
+        return self.serial.read(howBytes)
     # OK
     def send_message(self, messaggio, freeQueue=False, jumpException=False):
         if (freeQueue):
-            bytes2read = self.serialObj.in_waiting
+            bytes2read = self.serial.in_waiting
             if (bytes2read > 0):
-                self.serialObj.read(bytes2read)
-                sleep(0.01)
+                self.serial.read(bytes2read)
+                time.sleep(0.01)
 
         try:
-            self.serialObj.write(messaggio)
-            sleep(0.01)
-        except serial.SerialException as e:
-            if (jumpException == False):
+            self.serial.write(messaggio)
+            time.sleep(0.01)
+        except self.serial.SerialException as e:
+            if not jumpException:
                 # TODO: manca la stop async
-                self.serialObj.write(messaggio)
-                sleep(0.01)
+                self.serial.write(messaggio)
+                time.sleep(0.01)
             else:
-                Utils.printLog("Serial write error: " + e)
+                self.printLoggingMessage("Serial write error: " + e)
 
-    # --------------- UBLOX CONFIGURATION ---------------
+    # --------------- ublox FUNCTION ---------------
     def configure_ublox(self, rate=1):
         '''
         Questa funzione configura il ricevitore inviando la richiesta di configurazione (per ciascuna configurazione) un massimo di 3 volte.
@@ -97,7 +111,7 @@ class UBX:
         # set measurement rate
         # if (rate == -1):
         #    rate = 1
-        Utils.printLog("Setting measurement rate to " + rate + "Hz...", self.serialObj.name)
+        self.printLoggingMessage("Setting measurement rate to " + rate + "Hz...")
         reply_RATE = self.ublox_CFG_RATE(1000 / rate, 1, 1)
         tries = 0
         while (reply_RATE == False):
@@ -108,12 +122,12 @@ class UBX:
             reply_RATE = self.ublox_CFG_RATE(1000 / rate, 1, 1)
 
         if (reply_RATE):
-            Utils.printLog("done", self.serialObj.name)
+            self.printLoggingMessage("done")
         else:
-            Utils.printLog("failed", self.serialObj.name)
+            self.printLoggingMessage("failed")
 
         # enable raw measurement
-        Utils.printLog("Enabling raw data output (necessary for .obs RINEX file)...", self.serialObj.name)
+        self.printLoggingMessage("Enabling raw data output (necessary for .obs RINEX file)...")
         reply_RAW = self.ublox_CFG_MSG("RXM", "RAWX", 1)
         tries = 0
         while (reply_RAW == False):
@@ -124,12 +138,12 @@ class UBX:
             reply_RAW = self.ublox_CFG_MSG("RXM", "RAWX", 1)
 
         if (reply_RAW):
-            Utils.printLog("done", self.serialObj.name)
+            self.printLoggingMessage("done")
         else:
-            Utils.printLog("failed", self.serialObj.name)
+            self.printLoggingMessage("failed")
 
         # enable SFRB buffer output!
-        Utils.printLog("Enabling u-blox receiver subframe buffer (SFRBX) messages...")
+        self.printLoggingMessage("Enabling u-blox receiver subframe buffer (SFRBX) messages (necessary for .nav RINEX files)...")
         reply_SFRBX = self.ublox_CFG_MSG("RXM", "SFRBX", 1)
         tries = 0
         while (reply_SFRBX == False):
@@ -139,64 +153,65 @@ class UBX:
             self.serial_close_connect()
             reply_SFRBX = self.ublox_CFG_MSG("RXM", "SFRBX", 1)
         if (reply_SFRBX):
-            Utils.printLog("done", self.serialObj.name)
+            self.printLoggingMessage("done")
         else:
-            Utils.printLog("failed", self.serialObj.name)
+            self.printLoggingMessage("failed")
 
         # enable GGA messages, disable all others NMEA messages.
         # check page 143 of the UBX manual.
-        Utils.printLog("Configuring u-blox receiver NMEA Standard/Proprietary messages:", self.serialObj.name)
+        self.printLoggingMessage("Configuring u-blox receiver NMEA Standard/Proprietary messages:")
         self.ublox_CFG_MSG("NMEA", "GGA", 1)
-        Utils.printLog("enabling GGA", self.serialObj.name)
+        self.printLoggingMessage("enabling GGA")
         self.ublox_CFG_MSG("NMEA", "GLL", 0)
-        Utils.printLog("disabling GLL", self.serialObj.name)
+        self.printLoggingMessage("disabling GLL")
         self.ublox_CFG_MSG("NMEA", "GSA", 0)
-        Utils.printLog("disabling GSA", self.serialObj.name)
+        self.printLoggingMessage("disabling GSA")
         self.ublox_CFG_MSG("NMEA", "GSV", 0)
-        Utils.printLog("disabling GSV", self.serialObj.name)
+        self.printLoggingMessage("disabling GSV")
         self.ublox_CFG_MSG("NMEA", "RMC", 0)
-        Utils.printLog("disabling RMC", self.serialObj.name)
+        self.printLoggingMessage("disabling RMC")
         self.ublox_CFG_MSG("NMEA", "VTG", 0)
-        Utils.printLog("disabling VTG", self.serialObj.name)
+        self.printLoggingMessage("disabling VTG")
         self.ublox_CFG_MSG("NMEA", "GRS", 0)
-        Utils.printLog("disabling GRS", self.serialObj.name)
+        self.printLoggingMessage("disabling GRS")
         self.ublox_CFG_MSG("NMEA", "GST", 0)
-        Utils.printLog("disabling GST", self.serialObj.name)
+        self.printLoggingMessage("disabling GST")
         self.ublox_CFG_MSG("NMEA", "ZDA", 0)
-        Utils.printLog("disabling ZDA", self.serialObj.name)
+        self.printLoggingMessage("disabling ZDA")
         self.ublox_CFG_MSG("NMEA", "GBS", 0)
-        Utils.printLog("disabling GBS", self.serialObj.name)
+        self.printLoggingMessage("disabling GBS")
         self.ublox_CFG_MSG("NMEA", "DTM", 0)
-        Utils.printLog("disabling DTM", self.serialObj.name)
+        self.printLoggingMessage("disabling DTM")
         # nella versione 0.4.2 di goGPS mancano GBQ, GLQ, GNQ, GNS, GPQ, THS, TXT, VLW
         self.ublox_CFG_MSG("NMEA", "GBQ", 0)
-        Utils.printLog("disabling GBQ", self.serialObj.name)
+        self.printLoggingMessage("disabling GBQ")
         self.ublox_CFG_MSG("NMEA", "GLQ", 0)
-        Utils.printLog("disabling GLQ", self.serialObj.name)
+        self.printLoggingMessage("disabling GLQ")
         self.ublox_CFG_MSG("NMEA", "GNQ", 0)
-        Utils.printLog("disabling GNQ", self.serialObj.name)
+        self.printLoggingMessage("disabling GNQ")
         self.ublox_CFG_MSG("NMEA", "GNS", 0)
-        Utils.printLog("disabling GNS", self.serialObj.name)
+        self.printLoggingMessage("disabling GNS")
         self.ublox_CFG_MSG("NMEA", "GPQ", 0)
-        Utils.printLog("disabling GPQ", self.serialObj.name)
+        self.printLoggingMessage("disabling GPQ")
         self.ublox_CFG_MSG("NMEA", "THS", 0)
-        Utils.printLog("disabling THS", self.serialObj.name)
+        self.printLoggingMessage("disabling THS")
         self.ublox_CFG_MSG("NMEA", "TXT", 0)
-        Utils.printLog("disabling TXT", self.serialObj.name)
+        self.printLoggingMessage("disabling TXT")
         self.ublox_CFG_MSG("NMEA", "VLW", 0)
-        Utils.printLog("disabling VLW", self.serialObj.name)
+        self.printLoggingMessage("disabling VLW")
 
         # imposto NMEA proprietario
         self.ublox_CFG_MSG("PUBX", "POSITION", 0)
-        Utils.printLog("disabling POSITION", self.serialObj.name)
+        self.printLoggingMessage("disabling POSITION")
         self.ublox_CFG_MSG("PUBX", "RATE", 0)
-        Utils.printLog("disabling RATE", self.serialObj.name)
+        self.printLoggingMessage("disabling RATE")
         self.ublox_CFG_MSG("PUBX", "SVSTATUS", 0)
-        Utils.printLog("disabling SVSTATUS", self.serialObj.name)
+        self.printLoggingMessage("disabling SVSTATUS")
         self.ublox_CFG_MSG("PUBX", "TIME", 0)
-        Utils.printLog("disabling TIME", self.serialObj.name)
+        self.printLoggingMessage("disabling TIME")
         self.ublox_CFG_MSG("PUBX", "CONFIG", 0)
-        Utils.printLog("disabling CONFIG", self.serialObj.name)
+        self.printLoggingMessage("disabling CONFIG")
+
     def ublox_check_ACK(self, cls, id):
         '''
         Controlla che arrivi un ACK dopo una poll.
@@ -206,10 +221,10 @@ class UBX:
         '''
         out = False
 
-        msg = MessaggioUBX.MessaggioUBX("ACK", "ACK")
+        msg = UBXMessage("ACK", "ACK")
         lunghezzaPayload = 2
         msg.aggiungiBytes(lunghezzaPayload.to_bytes(2, 'little'))
-        msg.aggiungiBytes(Codici.ublox_UBX_codes(cls, id))
+        msg.aggiungiBytes(ublox_UBX_codes(cls, id))
 
         # calcolo il checksum
         msg.aggiungiBytes(msg.calcola_checksum())
@@ -228,22 +243,23 @@ class UBX:
                 return out
 
             reply_1 = self.in_waiting()
-            sleep(0.1)
+            time.sleep(0.1)
             reply_2 = self.in_waiting()
 
         reply = self.read(reply_1)
 
-        idx = Utils.strfind(reply, msg.getMessaggio(True)[0:3])
+        idx = strfind(reply, msg.getMessaggio(True)[0:3])
         if (len(idx) > 0 and len(reply[idx[0]:]) >= 10):
             reply = reply[idx[0]:(idx[0] + 9)]
             if (msg.getMessaggio(True) == reply):
                 out = True
         return out
+
     def ublox_CFG_CFG(self, action):
         '''
         Funzione che invia messaggi di tipo UBX-CFG-CFG allo scopo di configurare il ricevitore.
         '''
-        msg = MessaggioUBX.MessaggioUBX("CFG", "CFG")
+        msg = UBXMessage("CFG", "CFG")
         # aggiungo la lunghezza
         lunghezzaPayload = 13
         msg.aggiungiBytes(lunghezzaPayload.to_bytes(2, 'little'))
@@ -268,6 +284,7 @@ class UBX:
         msg.aggiungiBytes(clearMask)
         msg.aggiungiBytes(saveMask)
         msg.aggiungiBytes(loadMask)
+
         # 7 sarebbe 00000111, pag. 196 del manuale sarebbe devEEPROM, devFlash e devBBR, non devSpiFlash.
         deviceMask = 7
         msg.aggiungiBytes(deviceMask.to_bytes(1, 'little'))
@@ -278,13 +295,14 @@ class UBX:
         # invio la richiesta e raccolgo la risposta
         self.send_message(msg.getMessaggio(True), True, False)
         out = self.ublox_check_ACK("CFG", "CFG")
-        sleep(0.01)
+        time.sleep(0.01)
         return out
+
     def ublox_CFG_MSG(self, cls, id, mode):
         '''
         Invia un messaggio UBX-CFG-MSG indicando (mode = 1 o 0) al ricevitore di inviare/bloccare l'invio di un messaggio con quella classe/id.
         '''
-        msg = MessaggioUBX.MessaggioUBX("CFG", "MSG")
+        msg = UBXMessage("CFG", "MSG")
         # aggiungo la lunghezza
         lunghezzaPayload = 3
         msg.aggiungiBytes(lunghezzaPayload.to_bytes(2, 'little'))
@@ -294,7 +312,7 @@ class UBX:
         else:
             rate = b"\x00"
 
-        msg.aggiungiBytes(Codici.ublox_UBX_codes(cls, id))
+        msg.aggiungiBytes(ublox_UBX_codes(cls, id))
         msg.aggiungiByte(rate)
 
         # calcolo il checksum
@@ -303,12 +321,13 @@ class UBX:
         # invio la richiesta e raccolgo la risposta
         self.send_message(msg.getMessaggio(True), True, True)
         return self.ublox_check_ACK("CFG", "MSG")
+
     def ublox_CFG_GNSS(self, gnssParams):
         '''
         Invia un messaggio UBX-CFG-GNSS attivando la ricezione di messaggi da quel determinato GNSS.
         '''
 
-        msg = MessaggioUBX.MessaggioUBX("CFG", "GNSS")
+        msg = UBXMessage("CFG", "GNSS")
         # aggiungo la lunghezza
         lunghezzaPayload = 4 + 8*len(gnssParams)
         msg.aggiungiBytes(lunghezzaPayload.to_bytes(2, 'little', signed=False))
@@ -337,11 +356,12 @@ class UBX:
         out = self.ublox_check_ACK("CFG", "GNSS")
         time.sleep(0.5)
         return out
+
     def ublox_CFG_RATE(self, measRate, navRate, timeRef):
         '''
         Invia un messaggio UBX-CFG-RATE, impostando measRate, navRate e timeRef.
         '''
-        msg = MessaggioUBX.MessaggioUBX("CFG", "RATE")
+        msg = UBXMessage("CFG", "RATE")
         # aggiungo la lunghezza
         lunghezzaPayload = 6
         msg.aggiungiBytes(lunghezzaPayload.to_bytes(2, 'little'))
@@ -371,7 +391,7 @@ class UBX:
         '''
         Invia la richiesta di messaggio al ricevitore.
         '''
-        msg = MessaggioUBX.MessaggioUBX(ClassLab, MsgIDLab)
+        msg = UBXMessage(ClassLab, MsgIDLab)
         # aggiungo la lunghezza
         if (payload_length == 0):
             lunghezzaPayload = 0

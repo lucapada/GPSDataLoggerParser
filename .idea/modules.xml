@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/GPSDataLoggerParser.iml" filepath="$PROJECT_DIR$/.idea/GPSDataLoggerParser.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../gnss-nav-py-main/.idea/gnss-nav-py-main.iml" filepath="$PROJECT_DIR$/../gnss-nav-py-main/.idea/gnss-nav-py-main.iml" />
     </modules>
   </component>
 </project>

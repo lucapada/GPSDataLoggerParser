@@ -1,42 +1,40 @@
-from lib.GNSSParams import GNSSParams
-
-
-class RealtimeUBX:
-    def __init__(self, COMPort, fileRootOut, costellazioni: dict):
-        self.comPort = COMPort
+class AcquisizioneUBX:
+    def __init__(self, comPort, fileRootOut, costellazioni):
+        self.comPort = comPort
         self.fileRootOut = fileRootOut
-        self.costellazioni = GNSSParams(costellazioni["GPS"], costellazioni["GLO"], costellazioni["GAL"], costellazioni["BEI"],costellazioni["QZSS"],costellazioni["SBAS"],costellazioni["IMES"])
-        self.flag = True
+        self.acquisire = False
+        self.costellazioni = costellazioni
 
-    def setFlag(self, value):
-        self.flag = value
-
-    def getFlag(self):
-        return self.flag
+    def acquisizione(self):
+        return self.acquisire
 
     def start(self):
+        self.acquisire = True
+
         # creo i files binari
         # rover binary stream
         fid_rover = open(self.fileRootOut + "_rover_" + self.comPort + "_000.bin", "a")
+        # time sync stream
+        fid_time = open(self.comPort + "_times.txt", "a")
         # nmea sentences
         fid_nmea = open(self.fileRootOut + "_nmea_" + self.comPort + ".txt", "a")
         # hour
         hour = 0
 
-        nN = self.costellazioni.getEnabledSat  # numero delle ambiguità di fase
+        nN = self.costellazioni.getEnabledSat()  # numero delle ambiguità di fase
         iono = []  # parametri ionosfera
 
         # -----------------------------------------------------------------------
         #                    connessione al ricevitore
         # -----------------------------------------------------------------------
         roverObj = serial.Serial(self.comPort, UBX.BAUD_RATE)
-        if(roverObj.is_open):
+        if (roverObj.is_open):
             roverObj.close()
             roverObj.open()
 
         # configurazione del ricevitore
         ubxObj = UBX.UBX(roverObj)
-        ubxObj.configure_ublox(1) #TODO: occhio al flag della configurazione!
+        ubxObj.configure_ublox(1)  # TODO: occhio al flag della configurazione!
 
         # ------- inizio dell'acquisizione -------
         tic = time.time()
@@ -48,7 +46,7 @@ class RealtimeUBX:
 
         rover_1 = 0
         rover_2 = 0
-        while((rover_1 != rover_2) or (rover_1 == 0) or (rover_1 < 0)):
+        while ((rover_1 != rover_2) or (rover_1 == 0) or (rover_1 < 0)):
             # starting time
             current_time = time.time() - tic
             rover_1 = ubxObj.in_waiting()
@@ -76,7 +74,7 @@ class RealtimeUBX:
         satEph = []
         min_nsat_LS = 3 + self.costellazioni.getEnabledGNSS()
 
-        while((len(satObs) < min_nsat_LS) or not any(Utils.ismember(satObs, satEph))):
+        while ((len(satObs) < min_nsat_LS) or not any(Utils.ismember(satObs, satEph))):
             # TODO: cambiare qui nell'ottica del multicostellazione
             # poll available ephemeris
             ubxObj.ublox_poll_message("AID", "EPH", 0)
@@ -90,7 +88,7 @@ class RealtimeUBX:
             rover_2 = 0
 
             # inizio la determinazione delle epoche
-            while(rover_1 != rover_2 or rover_1 == 0):
+            while (rover_1 != rover_2 or rover_1 == 0):
                 # starting time
                 current_time = time.time() - tic
                 # controllo la porta
@@ -100,22 +98,22 @@ class RealtimeUBX:
 
             data_rover = ubxObj.read(rover_1)
             fid_rover.write(data_rover)
-            (cell_rover, nmea_sentences) = DecodificaUBX.decode_ublox(data_rover,self.costellazioni)
+            (cell_rover, nmea_sentences) = DecodificaUBX.decode_ublox(data_rover, self.costellazioni)
 
             for i in range(len(cell_rover)):
-                if(cell_rover[0] == "RXM-RAWX"):
+                if (cell_rover[0] == "RXM-RAWX"):
                     time_GPS = round(cell_rover[i][1]["TOW"])
                     pr_R[0] = []
                     for c in cell_rover[i][2]:
                         pr_R[0].append(c["PRM"])
-                elif(cell_rover[0] == "AID-EPH"):
+                elif (cell_rover[0] == "AID-EPH"):
                     idx = cell_rover[i][1].multiConstellation
-                    if(idx > 0):
+                    if (idx > 0):
                         Eph[idx] = cell_rover[i][1]
                         weekno = Eph[idx][23]
                         Eph[idx][31] = Utils.weektime2tow(weekno, Eph[idx][31])
                         Eph[idx][32] = Utils.weektime2tow(weekno, Eph[idx][32])
-                elif(cell_rover[0] == "AID-HUI"):
+                elif (cell_rover[0] == "AID-HUI"):
                     iono[0] = {
                         "alpha0": cell_rover[i][2]["alpha0"],
                         "alpha1": cell_rover[i][2]["alpha1"],
@@ -126,9 +124,9 @@ class RealtimeUBX:
                         "beta2": cell_rover[i][2]["beta2"],
                         "beta3": cell_rover[i][2]["beta3"],
                     }
-                elif(cell_rover[0] == "RXM-SFRBX"):
-                    # decodificare qui i subframe
-                    #TODO: una volta decodificati i subframes, fare qui il discorso dei subframes
+                elif (cell_rover[0] == "RXM-SFRBX"):
+            # decodificare qui i subframe
+            # TODO: una volta decodificati i subframes, fare qui il discorso dei subframes
 
             # prendo i satelliti con effemeridi disponibili
             satEph = []
@@ -152,7 +150,6 @@ class RealtimeUBX:
             if len(nSatObs_old) or len(satObs) != nSatObs_old:
                 Utils.printLog(len(satObs) + " satellites with ephemerides", self.comPort)
                 nSatObs_old = len(satObs)
-
 
         # ricavo le lunghezze d'onda delle costellazioni
         # lambdas = self.costellazioni.getWaveLengths(Eph, nN)
@@ -195,8 +192,8 @@ class RealtimeUBX:
         start_time = current_time - safety_lag
 
         # preparo l'epoca
-        dtime = ceil(current_time-start_time)
-        while (current_time-start_time) < dtime:
+        dtime = ceil(current_time - start_time)
+        while (current_time - start_time) < dtime:
             current_time = tic - time.time()
 
         # aumento l'epoca GPS (in realtà no?!)
@@ -206,8 +203,8 @@ class RealtimeUBX:
         start_time = start_time + dtime - 1
 
         # ---------- acquisizione dei dati dal ricevitore ----------
-        b = 1 # posizione corrente nel buffer
-        B = 20 # dimensione buffer
+        b = 1  # posizione corrente nel buffer
+        B = 20  # dimensione buffer
         # creo il buffer
         tick_R = []
         time_R = []
@@ -226,9 +223,9 @@ class RealtimeUBX:
             Utils.printLog("--- TIMING: epoch " + t + ": GPS Time=" + week_GPS + ":" + time_GPS, self.comPort)
 
             # gestisco il file
-            if floor(t/3600) > hour:
-                hour = floor(t/3600)
-                hour_str = "%03d" %hour
+            if floor(t / 3600) > hour:
+                hour = floor(t / 3600)
+                hour_str = "%03d" % hour
 
                 # chiudo il file precedente
                 fid_rover.close()
@@ -243,7 +240,7 @@ class RealtimeUBX:
 
             # acquisisco il tempo
             current_time = tic - time.time()
-            step_time = round(current_time-start_time)
+            step_time = round(current_time - start_time)
 
             # inizializzo i dati
             rover_init = ubxObj.in_waiting()
@@ -252,7 +249,8 @@ class RealtimeUBX:
 
             # tempo di attesa massimo dal ricevitore
             dtMax_rover = 0.2
-            while ((rover_1 != rover_2) or (rover_1 == rover_init)) and ((current_time-start_time-step_time) < dtMax_rover):
+            while ((rover_1 != rover_2) or (rover_1 == rover_init)) and (
+                    (current_time - start_time - step_time) < dtMax_rover):
                 # acquisisco il tempo
                 current_time = tic - time.time()
 
@@ -262,25 +260,26 @@ class RealtimeUBX:
                 rover_2 = ubxObj.in_waiting()
 
             # notifico
-            Utils.printLog((current_time-start_time) + " sec (" + rover_1 + "bytes --> " + rover_2 + "bytes)", self.comPort)
+            Utils.printLog((current_time - start_time) + " sec (" + rover_1 + "bytes --> " + rover_2 + "bytes)",
+                           self.comPort)
 
             # gestisco i depositi temporanei (shift e reset)
             if dtime < B:
-                tick_R[dtime:] = tick_R[0:(len(tick_R)-dtime-1)]
-                time_R[dtime:] = time_R[0:(len(time_R)-dtime-1)]
-                week_R[dtime:] = week_R[0:(len(week_R)-dtime-1)]
-                pr_R[dtime:] = pr_R[0:(len(pr_R)-dtime-1)]
-                ph_R[dtime:] = ph_R[0:(len(ph_R)-dtime-1)]
-                dop_R[dtime:] = dop_R[0:(len(dop_R)-dtime-1)]
-                snr_R[dtime:] = snr_R[0:(len(snr_R)-dtime-1)]
+                tick_R[dtime:] = tick_R[0:(len(tick_R) - dtime - 1)]
+                time_R[dtime:] = time_R[0:(len(time_R) - dtime - 1)]
+                week_R[dtime:] = week_R[0:(len(week_R) - dtime - 1)]
+                pr_R[dtime:] = pr_R[0:(len(pr_R) - dtime - 1)]
+                ph_R[dtime:] = ph_R[0:(len(ph_R) - dtime - 1)]
+                dop_R[dtime:] = dop_R[0:(len(dop_R) - dtime - 1)]
+                snr_R[dtime:] = snr_R[0:(len(snr_R) - dtime - 1)]
 
-                tick_R[0:(dtime-1)] = []
-                time_R[0:(dtime-1)] = []
-                week_R[0:(dtime-1)] = []
-                pr_R[0:(dtime-1)] = []
-                ph_R[0:(dtime-1)] = []
-                dop_R[0:(dtime-1)] = []
-                snr_R[0:(dtime-1)] = []
+                tick_R[0:(dtime - 1)] = []
+                time_R[0:(dtime - 1)] = []
+                week_R[0:(dtime - 1)] = []
+                pr_R[0:(dtime - 1)] = []
+                ph_R[0:(dtime - 1)] = []
+                dop_R[0:(dtime - 1)] = []
+                snr_R[0:(dtime - 1)] = []
             else:
                 tick_R = []
                 time_R = []
@@ -307,7 +306,7 @@ class RealtimeUBX:
                 nHUI = 0
 
                 for i in range(len(cell_rover)):
-                    if(cell_rover[i][0] == "RXM-RAWX"):
+                    if (cell_rover[i][0] == "RXM-RAWX"):
                         # calcolo l'indice del buffer
                         index = time_GPS - round(cell_rover[i][1]["TOW"]) + 1
                         if index <= B:
@@ -355,7 +354,7 @@ class RealtimeUBX:
                             type.append("AID-HUI ")
                         nHUI += 1
 
-                #TODO: non sono sicuro che funzioni
+                # TODO: non sono sicuro che funzioni
                 if len(nmea_sentences) > 0:
                     n = len(nmea_sentences)
                     for i in range(n):
@@ -375,7 +374,8 @@ class RealtimeUBX:
                     sat_ph.append(tPH)
             sat = sat_pr + sat_ph
 
-            Utils.printLog("decoding: " + (current_time-start_time) + " sec (" + "".join(type) + " messages)", self.comPort)
+            Utils.printLog("decoding: " + (current_time - start_time) + " sec (" + "".join(type) + " messages)",
+                           self.comPort)
             Utils.printLog("GPS time= " + time_R[i] + "(" + len(sat) + " satellites)", self.comPort)
 
             (sys_pr, prn_pr) = self.costellazioni.find_sat_system(sat_pr)
@@ -388,13 +388,14 @@ class RealtimeUBX:
             if len(sat) > 0 and index > 0:
                 # satelliti con osservazioni disponibili per la richiesta di effemeridi
                 conf_sat_eph = []
-                conf_sat_eph[sat_pr-1] = 1
+                conf_sat_eph[sat_pr - 1] = 1
                 # ciclo di aggiornamento degli effemeridi
                 conf_eph = []
                 for e in Eph:
                     if abs(e[0]) == 0:
                         conf_eph.append(1)
-                    else: conf_eph.append(0)
+                    else:
+                        conf_eph.append(0)
                 sat_index = np.argsort(snr_R[index])[::-1]
 
                 # TODO: non sono sicuro delle successive due righe
@@ -410,7 +411,7 @@ class RealtimeUBX:
                     if abs(conf_sat_eph[i]) == 1:
                         if conf_eph[i] == 0:
                             time_eph = Eph[s][31]
-                            tk = Utils.check_t(time_GPS-time_eph)
+                            tk = Utils.check_t(time_GPS - time_eph)
                         if conf_eph[i] == 1 or tk > 3600:
                             ubxObj.ublox_poll_message("AID", "EPH", 1, s.to_bytes(2, 'big'))
                             Utils.printLog("Satellite " + s + " ephemeris polled", self.comPort)
@@ -420,16 +421,17 @@ class RealtimeUBX:
             # TODO: qui dovrebbe valorizzare la variabile locale "flag". In teoria uso get e set esterni.
 
             # computo eventuale delay dato dal processing dei dati
-            dtime1 = ceil(current_time-start_time-step_time)
+            dtime1 = ceil(current_time - start_time - step_time)
             # computo il delay dato da cause esterne dopo il processing dei dati
             current_time = tic - time.sleep()
-            dtime2 = ceil(current_time-start_time-step_time)
+            dtime2 = ceil(current_time - start_time - step_time)
             if dtime2 > dtime1:
-                Utils.printLog("WARNING: System slowdown: " + (current_time-start_time) + " (delay " + (dtime2-dtime1) + " sec)", self.comPort)
+                Utils.printLog("WARNING: System slowdown: " + (current_time - start_time) + " (delay " + (
+                            dtime2 - dtime1) + " sec)", self.comPort)
             dtime = dtime2
 
             # vado alla prossima epoca
-            while (current_time-start_time-step_time) < dtime:
+            while (current_time - start_time - step_time) < dtime:
                 current_time = tic - time.time()
 
             # incremento l'epoca GPS
@@ -455,3 +457,8 @@ class RealtimeUBX:
         roverObj.close()
         fid_rover.close()
         fid_nmea.close()
+
+
+    def stop(self):
+        self.acquisire = False
+
