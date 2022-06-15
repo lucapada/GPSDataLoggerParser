@@ -53,6 +53,35 @@ def ieee754single(bits):
         mant += int(m[b]) * pow(2, -(b + 1))
     return pow(-1, s) * mant * pow(2, e - 127)
 
+def reshape(stringa: str, n: int) -> list:
+    out = []
+    k = 0
+    s = ""
+    for c in stringa:
+        s += c
+        k += 1
+        if k == n:
+            out.append(s)
+            s = ""
+            k = 0
+    return out
+
+def twos_complement(input: str) -> int:
+    '''
+    Restituisce il corrispondente decimale di un complemento a due.
+    :param input:
+    :return:
+    '''
+    out = []
+    if input[0] == "1":
+        for i in range(len(input)):
+            if input[i] == "1":
+                out[i] = "0"
+            else: out[i] = "1"
+        out = -1 * int(out, 2) - 1
+    else:
+        out = int(input, 2)
+    return out
 
 # Porting di funzioni MATLAB
 # TODO: da testare
@@ -384,18 +413,67 @@ def decode_RXM_SFRBX(msg):
     }
 
     data[2] = []
-    # repeated block for each word
-    for w in range(numWords):
-        wS = 8 + 4 * w
-        dwrd = int.from_bytes(msg2bits([msg[wS], msg[wS+1], msg[wS+2], msg[wS+3]]), 'little', signed=False)
-        # data word is different GNSS by GNSS.
-        if gnssId == 0 and numWords == 10:
-            '''
-            GPS L1C/A
-            comprende 10 parole. Ora sto decodificando la "wS"-esima.
-            '''
+    '''
+    Nota per l'interpretazione dei subframe:
+    a quanto pare, l'ordine delle parole rispetta quello del pacchetto
+    il fatto che è little endian, si vede nella composizione delle parole: 
+    vengono suddivise a blocchi di 8 e vengono poi ribaltate, parola dopo parola.
+    goGPS lavora con i bit e lo fa perché si lavora col little endian...
+    https://youtu.be/bWG4A0I21i4?list=PLX2gX-ftPVXXGdn_8m2HCIJS7CfKMCwol
+    '''
 
-        # elif gnssId ==
+    # data word is different GNSS by GNSS.
+    if gnssId == 0 and numWords == 10:
+        # GPS L1C/A
+        # nel GPS ho 10 dataword, dalla 3° la struttura cambia a seconda del subframe di riferimento.
+        dwrds = []
+        for w in range(numWords):
+            wS = 8 + 4 * w
+            dwrd_bit = "".join(msg2bits([msg[wS], msg[wS + 1], msg[wS + 2], msg[wS + 3]]))
+            dwrds.append(dwrd_bit[2:])
+
+        # la prima parola è TLM e posso ignorarla
+        # la seconda parola è HOW e da lì estraggo il subframe-id.
+        sfId = int(dwrds[1][21:23], 2)
+        if sfId == 1:
+            # sfId 1) Satellite Clock Correction Terms + GPS Week Number
+            # processing word 3
+            SF1D0 = dwrds[2]
+            SF1D1 = dwrds[3]
+            SF1D2 = dwrds[4]
+            SF1D3 = dwrds[5]
+            SF1D4 = dwrds[6]
+            SF1D5 = dwrds[7]
+            SF1D6 = dwrds[8]
+            SF1D7 = dwrds[9]
+
+            data[2]['weekno'] = int(SF1D0[0:9], 2)
+            data[2]['code_on_L2'] = int(SF1D0[10:11], 2)
+            data[2]['svaccur'] = int(SF1D0[12:15], 2)
+            data[2]['svhealth'] = int(SF1D0[16:21], 2)
+            IODC_MSBs = SF1D0[22:23], 2
+            IODC_LSBs = SF1D5[0:7], 2
+            data[2]['IODC'] = int((IODC_LSBs + IODC_MSBs), 2)
+            data[2]['L2flag'] = int(SF1D1[0], 2)
+            data[2]['tgd'] = twos_complement(SF1D4[16:23]) * pow(2,-31)
+            data[2]['toc'] = int(SF1D5[8:23], 2) * pow(2,4)
+            data[2]['af2'] = twos_complement(SF1D6[0:7]) * pow(2, -55)
+            data[2]['af1'] = twos_complement(SF1D6[8:23]) * pow(2,-43)
+            data[2]['af0'] = twos_complement(SF1D7[0:21]) * pow(2,-31)
+        elif sfId == 2:
+            # subframe 2) Precise Ephemeris Data (part 1)
+
+        elif sfId == 3:
+            # subframe 3) Precise Ephemeris Data (part 2)
+
+        elif sfId == 4:
+            # sf 4 and 5 of EVERY frame are needed to complete the entire nav message
+            # subframe 4) Ionospheric + UTC Data + Almanac for SVs (25 to 32)
+            # subframe 5) Almanac for SVs (1 to 24) + Almanac Reference Time
+
+
+
+    # elif gnssId ==
 
 
     return data
@@ -413,8 +491,8 @@ def decode_RXM_RAWX(msg):
     data = []
     data[0] = "RXM-RAWX"
 
-    # week time - 8bytes in IEE754 double precision format
-    tow = ieee754double(''.join(msg2bits([msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6], msg[7]])))
+    # week time - 8bytes in IEE754 double precision format #TODO non sono sicuro del little endian
+    tow = ieee754double(''.join(msg2bits([msg[7], msg[6], msg[5], msg[4], msg[3], msg[2], msg[1], msg[0]])))
 
     # GPS week number - 2bytes (unsigned int)
     week = int.from_bytes(b''.join([msg[8], msg[9]]), 'little', signed=False)
@@ -453,18 +531,18 @@ def decode_RXM_RAWX(msg):
     for m in range(numMeas):
         cS = 16 + 32 * m
 
-        # pseudorange measurament
+        # pseudorange measurament: #TODO non sono sicuro del little endian
         prMes = ieee754double(''.join(msg2bits(
-            [msg[cS], msg[cS + 1], msg[cS + 2], msg[cS + 3], msg[cS + 4], msg[cS + 5], msg[cS + 6], msg[cS + 7]])))
+            [msg[cS + 7], msg[cS + 6], msg[cS + 5], msg[cS + 4], msg[cS + 3], msg[cS + 2], msg[cS + 1], msg[cS]])))
 
         cS += 8
-        # carrier phase measurament cycles
+        # carrier phase measurament cycles: #TODO non sono sicuro del little endian
         cpMes = ieee754double(''.join(msg2bits(
-            [msg[cS], msg[cS + 1], msg[cS + 2], msg[cS + 3], msg[cS + 4], msg[cS + 5], msg[cS + 6], msg[cS + 7]])))
+            [msg[cS + 7], msg[cS + 6], msg[cS + 5], msg[cS + 4], msg[cS + 3], msg[cS + 2], msg[cS + 1], msg[cS]])))
 
         cS += 8
-        # doppler measurament
-        doMes = ieee754single(''.join(msg2bits([msg[cS], msg[cS + 1], msg[cS + 2], msg[cS + 3]])))
+        # doppler measurament: #TODO non sono sicuro del little endian
+        doMes = ieee754single(''.join(msg2bits([msg[cS + 3], msg[cS + 2], msg[cS + 1], msg[cS]])))
 
         cS += 4
         # gnssId
