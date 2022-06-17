@@ -163,6 +163,16 @@ def weektime2tow(week, time):
     '''
     return time - week * 7 * 86400
 
+# TODO: controllare
+def weektow2time(week, sow, sys):
+    time = week * 7 * 86400 + sow
+    BDS_mask = []
+    for s in sys:
+        BDS_mask.append(s == "C")
+    if any(BDS_mask):
+        GPS_BDS_week = 1356
+        time[BDS_mask] = (GPS_BDS_week + week[BDS_mask]) * 7 * 86400 + sow[BDS_mask]
+    return time
 
 # TODO: controllare
 def check_t(time):
@@ -423,13 +433,13 @@ def decode_RXM_SFRBX(msg):
     '''
 
     # data word is different GNSS by GNSS.
-    if gnssId == 0 and numWords == 10:
-        # GPS L1C/A
+    if (gnssId == 0 or gnssId == 5) and numWords == 10:
+        # GPS or QZSS L1C/A
         # nel GPS ho 10 dataword, dalla 3° la struttura cambia a seconda del subframe di riferimento.
         dwrds = []
         for w in range(numWords):
             wS = 8 + 4 * w
-            dwrd_bit = "".join(msg2bits([msg[wS], msg[wS + 1], msg[wS + 2], msg[wS + 3]]))
+            dwrd_bit = "".join(msg2bits([msg[wS + 3], msg[wS + 2], msg[wS + 1], msg[wS]])) # implemento qui il Little Endian
             dwrds.append(dwrd_bit[2:])
 
         # la prima parola è TLM e posso ignorarla
@@ -437,7 +447,6 @@ def decode_RXM_SFRBX(msg):
         sfId = int(dwrds[1][21:23], 2)
         if sfId == 1:
             # sfId 1) Satellite Clock Correction Terms + GPS Week Number
-            # processing word 3
             SF1D0 = dwrds[2]
             SF1D1 = dwrds[3]
             SF1D2 = dwrds[4]
@@ -447,33 +456,131 @@ def decode_RXM_SFRBX(msg):
             SF1D6 = dwrds[8]
             SF1D7 = dwrds[9]
 
-            data[2]['weekno'] = int(SF1D0[0:9], 2)
-            data[2]['code_on_L2'] = int(SF1D0[10:11], 2)
-            data[2]['svaccur'] = int(SF1D0[12:15], 2)
-            data[2]['svhealth'] = int(SF1D0[16:21], 2)
+            weekno = int(SF1D0[0:9], 2)
+            code_on_L2 = int(SF1D0[10:11], 2)
+            svaccur = int(SF1D0[12:15], 2)
+            svhealth = int(SF1D0[16:21], 2)
             IODC_MSBs = SF1D0[22:23], 2
             IODC_LSBs = SF1D5[0:7], 2
-            data[2]['IODC'] = int((IODC_LSBs + IODC_MSBs), 2)
-            data[2]['L2flag'] = int(SF1D1[0], 2)
-            data[2]['tgd'] = twos_complement(SF1D4[16:23]) * pow(2,-31)
-            data[2]['toc'] = int(SF1D5[8:23], 2) * pow(2,4)
-            data[2]['af2'] = twos_complement(SF1D6[0:7]) * pow(2, -55)
-            data[2]['af1'] = twos_complement(SF1D6[8:23]) * pow(2,-43)
-            data[2]['af0'] = twos_complement(SF1D7[0:21]) * pow(2,-31)
+            IODC = int((IODC_LSBs + IODC_MSBs), 2)
+            L2flag = int(SF1D1[0], 2)
+            tgd = twos_complement(SF1D4[16:23]) * pow(2, -31)
+            toc = int(SF1D5[8:23], 2) * pow(2, 4)
+            af2 = twos_complement(SF1D6[0:7]) * pow(2, -55)
+            af1 = twos_complement(SF1D6[8:23]) * pow(2, -43)
+            af0 = twos_complement(SF1D7[0:21]) * pow(2, -31)
         elif sfId == 2:
             # subframe 2) Precise Ephemeris Data (part 1)
+            SF2D0 = dwrds[2]
+            SF2D1 = dwrds[3]
+            SF2D2 = dwrds[4]
+            SF2D3 = dwrds[5]
+            SF2D4 = dwrds[6]
+            SF2D5 = dwrds[7]
+            SF2D6 = dwrds[8]
+            SF2D7 = dwrds[9]
 
+            IODE2 = int(SF2D0[0:7], 2)
+            Crs = twos_complement(SF2D0[8:23]) * pow(2, -5)
+            delta_n = twos_complement(SF2D1[0:15]) * math.pi * pow(2, -43)
+            M0 = twos_complement((SF2D1[16:23] + SF2D2[0:23])) * math.pi * pow(2, -31)
+            Cuc = twos_complement(SF2D3[0:15]) * pow(2, -29)
+            e = int((SF2D3[16:23] + SF2D4[0:23]), 2) * pow(2, -33)
+            Cus = twos_complement(SF2D5[0:15]) * pow(2, -29)
+            root_A = int((SF2D5[16:23] + SF2D6[0:23]), 2) * pow(2, -19)
+            toe = int(SF2D7[0:15]) * pow(2, 4)
+            fit_int = int(SF2D7[16])
         elif sfId == 3:
             # subframe 3) Precise Ephemeris Data (part 2)
+            SF3D0 = dwrds[2]
+            SF3D1 = dwrds[3]
+            SF3D2 = dwrds[4]
+            SF3D3 = dwrds[5]
+            SF3D4 = dwrds[6]
+            SF3D5 = dwrds[7]
+            SF3D6 = dwrds[8]
+            SF3D7 = dwrds[9]
 
+            Cic = twos_complement(SF3D0[0:15]) * pow(2, -29)
+            omega0 = twos_complement((SF3D0[16:23] + SF3D1[0:23])) * math.pi * pow(2, -31)
+            Cis = twos_complement(SF3D2[0:15]) * pow(2, -29)
+            i0 = twos_complement((SF3D2[16:23] + SF3D3[0:23])) * math.pi * pow(2, -31)
+            Crc = twos_complement(SF3D4[0:15]) * pow(2, -5)
+            omega = twos_complement((SF3D4[16:23] + SF3D5[0:23])) * math.pi * pow(2, -31)
+            omegadot = twos_complement(SF3D6[0:23]) * math.pi * pow(2, -43)
+            IODE3 = int(SF3D7[0:7])
+            IDOT = twos_complement(SF3D7[8:21]) * math.pi * pow(2, -43)
         elif sfId == 4:
-            # sf 4 and 5 of EVERY frame are needed to complete the entire nav message
-            # subframe 4) Ionospheric + UTC Data + Almanac for SVs (25 to 32)
-            # subframe 5) Almanac for SVs (1 to 24) + Almanac Reference Time
+            if int(dwrds[2][11:16], 2) == 56:
+                # sf 4 and 5 of EVERY frame are needed to complete the entire nav message
+                # subframe 4) Ionospheric + UTC Data + Almanac for SVs (25 to 32)
+                # subframe 5) Almanac for SVs (1 to 24) + Almanac Reference Time
+                SF4D0 = dwrds[2]
+                SF4D1 = dwrds[3]
+                SF4D2 = dwrds[4]
+                SF4D3 = dwrds[5]
+                SF4D4 = dwrds[6]
+                SF4D5 = dwrds[7]
+                SF4D6 = dwrds[8]
+                SF4D7 = dwrds[9]
+
+                data[1]['a0'] = twos_complement(SF4D0[8:15]) * pow(2, -30)
+                data[1]['a1'] = twos_complement(SF4D0[16:23]) * pow(2, -27)
+                data[1]['a2'] = twos_complement(SF4D1[0:7]) * pow(2, -24)
+                data[1]['a3'] = twos_complement(SF4D1[8:15]) * pow(2, -24)
+                data[1]['b0'] = twos_complement(SF4D1[16:23]) * pow(2, 11)
+                data[1]['b1'] = twos_complement(SF4D2[0:7]) * pow(2, 14)
+                data[1]['b2'] = twos_complement(SF4D2[8:13]) * pow(2, 16)
+                data[1]['b3'] = twos_complement(SF4D2[16:23]) * pow(2, 16)
+                data[1]['leap_seconds'] = twos_complement(SF4D6[0:7])
+
+        if IODC == IODE2 and IODC == IODE3 and constellations.GPS.enabled:
+            data[2][0] = svId # PRN
+            data[2][1] = af2
+            data[2][2] = M0
+            data[2][3] = root_A
+            data[2][4] = delta_n
+            data[2][5] = e
+            data[2][6] = omega
+            data[2][7] = Cuc
+            data[2][8] = Cus
+            data[2][9] = Crc
+            data[2][10] = Crs
+            data[2][11] = i0
+            data[2][12] = IDOT
+            data[2][13] = Cic
+            data[2][14] = Cis
+            data[2][15] = omega0
+            data[2][16] = omegadot
+            data[2][17] = toe
+            data[2][18] = af0
+            data[2][19] = af1
+            data[2][20] = toc
+            data[2][21] = IODE3
+            data[2][22] = code_on_L2
+            data[2][23] = weekno
+            data[2][24] = L2flag
+            data[2][25] = svaccur
+            data[2][26] = svhealth
+            data[2][27] = tgd
+            data[2][28] = fit_int
+            data[2][29] = constellations.GPS.indexes(PRN) #TODO: vedere questo una volta sistemate le GNSS.
+            data[3][30] = 71 # G (char)
+            data[3][31] = weektow2time(weekno, toe, 'G')
+            data[3][32] = weektow2time(weekno, toc, 'G')
+    elif gnssId == 1:
+        # SBAS
+    elif gnssId == 2:
+        # Galileo E1OS I/NAV
 
 
+    elif gnssId == 3:
+        # BeiDou B1I
 
-    # elif gnssId ==
+    elif gnssId == 4:
+        # IMES
+    elif gnssId == 6:
+        # GLONASS L1
 
 
     return data
