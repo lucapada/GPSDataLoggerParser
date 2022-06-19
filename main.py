@@ -1,3 +1,8 @@
+from __future__ import annotations
+from abc import ABC, abstractmethod
+from random import randrange
+from typing import List
+
 import platform
 import subprocess
 import sys, os
@@ -7,10 +12,9 @@ import serial
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QFileDialog
-from PyQt5 import QtCore, QtGui, QtWidgets
 
 from modules.BackendHandler import Handler
-from modules.Reporter import Observer, Reporter, Observable
+from modules.Reporter import Observer, Observable
 from modules.Utils import msg2bits, splitBytes, strfind
 
 # from WindowsNT
@@ -28,8 +32,11 @@ CONSTELLATIONS = ["GPS","SBAS","Galileo","BeiDou","IMES","QZSS","GLONASS"]
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 
-class Ui_MainWindow(object):
+class Ui_MainWindow(Observer):
     def __init__(self, MainWindow):
+        self.HANDLERS = {}
+        self.CONNECTED_PORTS = []
+
         self.MainWindow = MainWindow
         self.setupUi()
         self.MainWindow.show()
@@ -64,6 +71,8 @@ class Ui_MainWindow(object):
         self.btnStopUBX.clicked.connect(self.stopUBXs)
         self.ubxDevicesListView.clicked.connect(self.toggleUBXControl)
         self.btnRunRINEX.clicked.connect(self.startRinex)
+        self.btnAddFile.clicked.connect(self.loadFiles)
+        self.btnRemoveSelectedFile.clicked.connect(self.removeFiles)
 
     def setupUi(self):
         MainWindow = self.MainWindow
@@ -236,8 +245,7 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "GPSDataLoggerParser"))
-        self.label.setText(_translate("MainWindow", "NMEA and RINEX\n"
-"output path:"))
+        self.label.setText(_translate("MainWindow", "NMEA and RINEX\noutput path:"))
         self.txtUBXPath.setPlaceholderText(_translate("MainWindow", "press \"Choose\" button to select the path where to save collected datas"))
         self.btnChooseUBXPath.setText(_translate("MainWindow", "Choose"))
         self.groupBox.setTitle(_translate("MainWindow", "Messages and Logs"))
@@ -287,13 +295,25 @@ class Ui_MainWindow(object):
         self.ubxDevicesListView.setModel(self.model)
         self.cmbBaudRateUBX.setEnabled(True)
 
-
     def recordUBXs(self):
-        costellazioniAttive = 0
+        new_GNSS = {
+            "GPS": 0,
+            "SBAS": 0,
+            "Galileo": 0,
+            "BeiDou": 0,
+            "IMES": 0,
+            "QZSS": 0,
+            "GLONASS": 0
+        }
+        enabledGNSS = 0
         for c in range(self.modelCostellazioni.rowCount()):
-            if self.modelCostellazioni.item(c).checkState() == QtCore.Qt.Checked: costellazioniAttive += 1
+            if self.modelCostellazioni.item(c).checkState() == QtCore.Qt.Checked:
+                new_GNSS[self.modelCostellazioni.item(c).text()] = 1
+                enabledGNSS += 1
+            else:
+                new_GNSS[self.modelCostellazioni.item(c).text()] = 0
 
-        if costellazioniAttive > 0:
+        if enabledGNSS > 0:
             # faccio partire la registrazione dello stream.
             # blocco la possibilità di scegliere le costellazioni e i dispositivi e abilito il pulsante di stop
             self.btnDiscoverUBXDevices.setEnabled(False)
@@ -303,12 +323,37 @@ class Ui_MainWindow(object):
             self.btnRecordUBX.setEnabled(False)
             self.cmbBaudRateUBX.setEnabled(False)
 
-            # TODO: far partire qui l'acquisizione dei thread
+            for d in range(self.model.rowCount()):
+                if self.model.item(d).checkState() == QtCore.Qt.Checked:
+                    new_connection = self.model.item(d).text()
+                    new_handler = Handler(new_connection, self.cmbBaudRateUBX.currentText(), new_GNSS, self.txtUBXPath.text())
+                    if True: #new_handler.isActive():
+                        self.CONNECTED_PORTS.append(new_connection)
+                        self.HANDLERS[new_connection] = new_handler
+                        self.HANDLERS[new_connection].appendObserver(self)
+                        self.HANDLERS[new_connection].handleData()
+                    else:
+                        QtWidgets.QMessageBox.about(self.MainWindow, "Error", f"Cannot connect to {new_connection}")
         else:
             QtWidgets.QMessageBox.about(self.MainWindow, "Error", "You don't have selected any GNSS.")
 
     def stopUBXs(self):
-        # TODO: mettere qui l'interruzione dei thread
+        inactive = []
+        handler_keys = list(self.HANDLERS.keys())
+
+        if len(handler_keys) > 0:
+            for key in handler_keys:
+                self.HANDLERS[key].logger.deactivateLogger()
+                #if not self.HANDLERS[key].logger.is_active:
+                self.HANDLERS.pop(key, "")
+                inactive.append(key)
+
+        # Remove corresponding table element
+        for port in inactive:
+            print(f"[LOGGER] {port} disconnected")
+            index = self.CONNECTED_PORTS.index(port)
+            self.CONNECTED_PORTS.pop(index)
+
 
         self.btnDiscoverUBXDevices.setEnabled(True)
         self.constellationsListView.setEnabled(True)
@@ -321,6 +366,30 @@ class Ui_MainWindow(object):
         valid = True
         if valid:
             self.rinexGroupBox.setEnabled(True)
+
+    def loadFiles(self):
+        filter = "UBX (*.ubx)"
+        file_name = QtGui.QFileDialog()
+        file_name.setFileMode(QFileDialog.ExistingFiles)
+        names = file_name.getOpenFileNamesAndFilter(self, "Open files", ".", filter)
+        self.modelFiles = QStandardItemModel()
+        for n in names:
+            item = QStandardItem(n)
+            item.setCheckable(True)
+            checked = False  # di default non sono selezionati
+            check = QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked
+            item.setCheckState(check)
+            self.modelFiles.appendRow(item)
+        self.filesListView.setModel(self.modelFiles)
+
+    def removeFiles(self):
+        selected = 0
+        for f in range(self.modelFiles.rowCount()):
+            if self.modelFiles.item(f).checkState() == QtCore.Qt.Checked:
+                self.modelFiles.removeRow(self.modelFiles.item(f))
+                selected += 1
+        if selected <= 0:
+            QtWidgets.QMessageBox.about(self.MainWindow, "Error", "No selected files to delete.")
 
     def startRinex(self):
         self.btnRunRINEX.setEnabled(False)
@@ -351,14 +420,6 @@ class Ui_MainWindow(object):
         r = qm.question(self.MainWindow, "RINEX Conversion", "RINEX Conversion has been ended. Open folder with all sources and RINEX files?", qm.Yes | qm.No)
         if r == qm.Yes:
             self.openFile(self.txtUBXPath.text())
-
-    # def update(self, obs: Observable) -> None:
-    #     '''
-    #     Observer update method
-    #     :param obs:
-    #     :return:
-    #     '''
-    #     self.printLog(obs._msg)
 
     def printLog(self, msg: str):
         self.txtLogs.append(msg)
@@ -433,179 +494,12 @@ class Ui_MainWindow(object):
             self.btnRecordUBX.setEnabled(False)
             self.btnStopUBX.setEnabled(False)
 
+    # Gestione Observer
+    def update(self, observable: Observable) -> None:
+        self.printLog(observable._messaggio)
+
 if __name__ == "__main__":
     app = QApplication([])
     window = QMainWindow()
     ui = Ui_MainWindow(window)
     exit(app.exec())
-#
-# class MainWindow(QMainWindow, Observer):
-#     # implementazione del pattern observer
-#
-#         # -------------------------------------------------
-#
-#
-#
-#     def initUI(self):
-#         # Port selection
-#         self.port_selection = QComboBox()
-#         self.port_selection.addItems(self.getPorts())
-#
-#         # baudrate selection
-#         self.baud_selection = QComboBox()
-#         self.baud_selection.addItems(BAUDRATES)
-#
-#         # Input text
-#         self.input_device_name = QLineEdit()
-#         self.input_logfile_name = QLineEdit()
-#
-#         # Labels
-#         self.in_device_label = QLabel("Device: ")
-#         self.in_logfile_name = QLabel("Logfile: ")
-#         self.in_baud_label = QLabel("Baudrate: ")
-#
-#         # control buttons
-#         self.refresh_port_btn = QPushButton("Refresh Ports")
-#         self.refresh_port_btn.clicked.connect(self.updatePorts)
-#
-#         self.add_port_btn = QPushButton("Add")
-#         self.add_port_btn.clicked.connect(self.portAdded)
-#
-#         # Table view widget
-#         self.MAIN_TABLE = QTableWidget()
-#         self.MAIN_TABLE.setRowCount(self.TABLE_ROWS)
-#         self.MAIN_TABLE.setColumnCount(self.TABLE_COLUMNS)
-#         self.MAIN_TABLE.showNormal()
-#         self.updateTableData()
-#
-#     def initTimer(self):
-#         self.timer = QTimer()
-#         self.timer.timeout.connect(self.updateAll)
-#         self.timer.start(2)
-#
-#         # Place all widget in main widget
-#         self.MainWidgetLayout.addWidget(self.MAIN_TABLE, 0, 0, 5, 4)
-#         self.MainWidgetLayout.addWidget(self.port_selection, 6, 0, 1, 1)
-#         self.MainWidgetLayout.addWidget(self.refresh_port_btn, 6, 1, 1, 1)
-#         self.MainWidgetLayout.addWidget(self.add_port_btn, 6, 2, 1, 2)
-#         self.MainWidgetLayout.addWidget(self.in_device_label, 7, 0, 1, 1)
-#         self.MainWidgetLayout.addWidget(self.input_device_name, 7, 1, 1, 1)
-#         self.MainWidgetLayout.addWidget(self.in_logfile_name, 7, 2, 1, 1)
-#         self.MainWidgetLayout.addWidget(self.input_logfile_name, 7, 3, 1, 1)
-#         self.MainWidgetLayout.addWidget(self.in_baud_label, 8, 0, 1, 1)
-#         self.MainWidgetLayout.addWidget(self.baud_selection, 8, 1, 1, 1)
-#
-#     def updateTableData(self):
-#         self.MAIN_TABLE.setRowCount(self.TABLE_ROWS)
-#         horHeaders = []
-#
-#         for col, key in enumerate(self.MAIN_TABLE_DATA.keys()):
-#             horHeaders.append(key)
-#
-#             # Add new items with read only
-#             for row, item in enumerate(self.MAIN_TABLE_DATA[key]):
-#                 newitem = QTableWidgetItem(item)
-#                 newitem.setFlags(newitem.flags() & ~Qt.ItemFlag.ItemIsEditable)
-#                 self.MAIN_TABLE.setItem(row, col, newitem)
-#
-#         self.MAIN_TABLE.setHorizontalHeaderLabels(horHeaders)
-#
-#     # EVENT HANDLERS
-#     def updatePorts(self):
-#         connected_ports = self.getPorts()
-#         current_ports = [self.port_selection.itemText(i) for i in range(self.port_selection.count())]
-#         new_port = []
-#         for port in connected_ports:
-#             if port not in current_ports:
-#                 new_port.append(port)
-#
-#         self.port_selection.addItems(new_port)
-#
-#     def portAdded(self):
-#         # Update connected port list
-#         new_connection = self.port_selection.currentText()
-#         new_device = self.input_device_name.text()
-#         new_logfile = self.input_logfile_name.text()
-#         new_baud = int(self.baud_selection.currentText())
-#
-#         # Check if new connection is already in table
-#         if new_connection not in self.MAIN_TABLE_DATA["Port"]:
-#
-#             # Check if logfile & device nickname is specified
-#             if (len(new_device) > 0) and (len(new_logfile) > 0):
-#
-#                 # Try to connect
-#                 # new_handler = Handler(new_connection, new_logfile, new_baud)
-#                 new_GNSS = {
-#                     "GPS": 1,
-#                     "GAL": 0,
-#                     "GLO": 0,
-#                     "BEI": 0,
-#                     "QZSS": 0,
-#                     "IMES": 0,
-#                     "SBAS": 0,
-#                 }
-#                 new_handler = Handler(new_connection, new_baud, new_GNSS)
-#
-#                 if new_handler.isActive():
-#                     self.DEVICES_NAME.append(new_device)
-#                     self.CONNECTED_PORTS.append(new_connection)
-#                     self.LOGFILES_LIST.append(new_logfile)
-#                     self.HANDLERS[new_connection] = new_handler
-#                     self.HANDLERS[new_connection].handleData()
-#
-#                     # Update table content
-#                     self.TABLE_ROWS += 1
-#                     self.updateTableData()
-#                     self.adjustSize()
-#                 else:
-#                     MainWindow.showDialog("ERROR", f"Cannot connect to {new_connection}")
-#             else:
-#                 MainWindow.showDialog("ERROR", "Missing information. Please provide both logfile & device name")
-#         else:
-#             MainWindow.showDialog("ERROR", "Cannot assign already existing port.")
-#
-#         # Clear text
-#         self.input_device_name.setText('')
-#         self.input_logfile_name.setText('')
-#
-#     def updateAll(self):
-#         inactive = []
-#         handler_keys = list(self.HANDLERS.keys())
-#
-#         if len(handler_keys) > 0:
-#             for key in handler_keys:
-#                 # remove handler if inactive
-#                 if not self.HANDLERS[key].logger.is_active:
-#                     self.HANDLERS.pop(key, "")
-#                     inactive.append(key)
-#
-#         # Remove corresponding table element
-#         for port in inactive:
-#             print(f"[LOGGER] {port} disconnected")
-#             index = self.CONNECTED_PORTS.index(port)
-#             self.CONNECTED_PORTS.pop(index)
-#             self.LOGFILES_LIST.pop(index)
-#             self.DEVICES_NAME.pop(index)
-#
-#             self.TABLE_ROWS -= 1
-#             self.updateTableData()
-#
-#     # Generic Dialog
-#     @staticmethod
-#     def showDialog(dialog_title: str, msg: str):
-#         d = QDialog()
-#         layout = QGridLayout()
-#         d.setLayout(layout)
-#
-#         warn_msg = QLabel(msg)
-#         layout.addWidget(warn_msg, 0, 0)
-#
-#         d.setWindowTitle(dialog_title)
-#         d.exec_()
-#
-#
-# if __name__ == "__main__":
-#     app = QApplication(sys.argv)
-#     main = MainWindow()
-#     exit(app.exec_())

@@ -1,26 +1,50 @@
 import datetime
 import time
+from typing import List
 
-from serial.serialutil import SerialException
 from . import SerialParser as ser
-from . import Reporter
 from . import UBXMessage
+from .Reporter import Observable, Observer
 from .UBXCodes import ublox_UBX_codes
 from .Utils import strfind
 
 
-class Logger:
-
+class Logger(Observable):
     def __init__(self, active_serial: ser.SerialParser, gnss: dict, filePath: str):
-        # --------------------------------------------
-        self._reporter = Reporter()
-        # --------------------------------------------
         self.serial = active_serial
         self.is_active = True
+        self.gnss = gnss
+        self.filePath = filePath
 
-    # Continuously log data
+    # Handler is Observer of Logger. So implements Observable
+    _observers: List[Observer] = []
+    _messaggio: str = ""
+
+    def attach(self, observer: Observer) -> None:
+        self._observers.append(observer)
+
+    def detach(self, observer: Observer) -> None:
+        self._observers.remove(observer)
+
+    def notify(self) -> None:
+        for observer in self._observers:
+            observer.update(self)
+
+    def setMessage(self, msg: str):
+        self._messaggio = msg
+
+    def notifyMessage(self, msg: str):
+        self.setMessage(msg)
+        self.notify()
+
+    # Logger Activation
+    def deactivateLogger(self):
+        self.is_active = False
+
+    # Data Logging Main Function
     def logData(self) -> str:
-        return "ciao"
+        self.notifyMessage("ciao " + self.serial.port + " : " + self.filePath)
+        return
         # TODO: implementare qui la logica ora in realtime.py
         # data = ""
         # while self.is_active:
@@ -36,9 +60,6 @@ class Logger:
         #             f"(THREAD ERROR) Device disconnected, ending thread associated with the logger after closing files...")
         #
         # return data
-
-    def printLoggingMessage(self, message:str):
-        self._reporter.printLog(f"[{self.serial.port}]: {message}")
 
     # --------------- serial FUNCTION ---------------
     # OK
@@ -70,7 +91,6 @@ class Logger:
             if (bytes2read > 0):
                 self.serial.read(bytes2read)
                 time.sleep(0.01)
-
         try:
             self.serial.write(messaggio)
             time.sleep(0.01)

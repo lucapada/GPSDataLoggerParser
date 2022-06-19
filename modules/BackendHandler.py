@@ -1,6 +1,8 @@
 from . import ThreadWithReturn
 from . import SerialParser
 from . import Logger
+from .Reporter import Observer
+
 
 class Handler(object):
 
@@ -12,6 +14,10 @@ class Handler(object):
 
     def isActive(self):
         return self.logger.serial.isOpen()
+
+    def appendObserver(self, observer: Observer):
+        self.logger.attach(observer)
+        self.connection.attach(observer)
 
     def handleData(self):
         self.thread.start()
