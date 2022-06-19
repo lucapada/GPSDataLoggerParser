@@ -1,4 +1,4 @@
-from UBXCodes import ublox_UBX_codes
+from modules.UBXCodes import ublox_UBX_codes
 
 
 class UBXMessage:

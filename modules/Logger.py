@@ -5,7 +5,7 @@ from serial.serialutil import SerialException
 from . import SerialParser as ser
 from . import Reporter
 from . import UBXMessage
-from UBXCodes import ublox_UBX_codes
+from .UBXCodes import ublox_UBX_codes
 from .Utils import strfind
 
 
@@ -20,6 +20,7 @@ class Logger:
 
     # Continuously log data
     def logData(self) -> str:
+        return "ciao"
         # TODO: implementare qui la logica ora in realtime.py
         # data = ""
         # while self.is_active:
