@@ -369,9 +369,9 @@ class Ui_MainWindow(Observer):
 
     def loadFiles(self):
         filter = "UBX (*.ubx)"
-        file_name = QtGui.QFileDialog()
+        file_name = QtWidgets.QFileDialog()
         file_name.setFileMode(QFileDialog.ExistingFiles)
-        names = file_name.getOpenFileNamesAndFilter(self, "Open files", ".", filter)
+        names, _ = file_name.getOpenFileNames(self.MainWindow, "Open files", ".", filter)
         self.modelFiles = QStandardItemModel()
         for n in names:
             item = QStandardItem(n)
@@ -384,12 +384,17 @@ class Ui_MainWindow(Observer):
 
     def removeFiles(self):
         selected = 0
+        r2del = []
         for f in range(self.modelFiles.rowCount()):
             if self.modelFiles.item(f).checkState() == QtCore.Qt.Checked:
-                self.modelFiles.removeRow(self.modelFiles.item(f))
+                r2del.append(self.modelFiles.item(f).row())
                 selected += 1
-        if selected <= 0:
+        if not selected > 0:
             QtWidgets.QMessageBox.about(self.MainWindow, "Error", "No selected files to delete.")
+        else:
+            for r in r2del:
+                self.modelFiles.removeRow(r)
+            self.filesListView.setModel(self.modelFiles)
 
     def startRinex(self):
         self.btnRunRINEX.setEnabled(False)

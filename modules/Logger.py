@@ -44,7 +44,6 @@ class Logger(Observable):
     # Data Logging Main Function
     def logData(self) -> str:
         self.notifyMessage("ciao " + self.serial.port + " : " + self.filePath)
-        return
         # TODO: implementare qui la logica ora in realtime.py
         # data = ""
         # while self.is_active:
