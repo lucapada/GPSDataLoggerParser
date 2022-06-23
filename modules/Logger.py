@@ -1,49 +1,31 @@
 import datetime
 import time
-from typing import List
 
 from . import SerialParser as ser
 from . import UBXMessage
-from .Reporter import Observable, Observer
 from .UBXCodes import ublox_UBX_codes
 from .Utils import strfind
 
 
-class Logger(Observable):
-    def __init__(self, active_serial: ser.SerialParser, gnss: dict, filePath: str):
+class Logger():
+    def __init__(self, mainWindow, active_serial: ser.SerialParser, gnss: dict, filePath: str):
         self.serial = active_serial
         self.is_active = True
         self.gnss = gnss
         self.filePath = filePath
-
-    # Handler is Observer of Logger. So implements Observable
-    _observers: List[Observer] = []
-    _messaggio: str = ""
-
-    def attach(self, observer: Observer) -> None:
-        self._observers.append(observer)
-
-    def detach(self, observer: Observer) -> None:
-        self._observers.remove(observer)
-
-    def notify(self) -> None:
-        for observer in self._observers:
-            observer.update(self)
-
-    def setMessage(self, msg: str):
-        self._messaggio = msg
-
-    def notifyMessage(self, msg: str):
-        self.setMessage(msg)
-        self.notify()
+        self.mainWindow = mainWindow
 
     # Logger Activation
     def deactivateLogger(self):
         self.is_active = False
+        self.mainWindow.printLog("[LOGGER] deactivate " + self.serial.port)
 
     # Data Logging Main Function
     def logData(self) -> str:
-        self.notifyMessage("ciao " + self.serial.port + " : " + self.filePath)
+        c = 0
+        while self.is_active:
+            self.mainWindow.printLog("[LOGGER] ciao " + self.serial.port + " (" + c + ")")
+            c += 1
         # TODO: implementare qui la logica ora in realtime.py
         # data = ""
         # while self.is_active:

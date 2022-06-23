@@ -1,4 +1,4 @@
-from modules import Reporter, UBXMessage
+from modules import UBXMessage
 
 
 # OK - TEST
@@ -115,7 +115,7 @@ def find(elements, greaterThan, topK, equals=False):
     return i
 
 # --------------- DECODING FUNCTIONS ---------------
-def decode_ublox(msg, reporter: Reporter):
+def decode_ublox(msg):
     '''
     Funzione che decodifica il messaggio proveniente dall'ublox (bytes).
     Distingue NMEA o UBX e alla fine ritorna entrambi.

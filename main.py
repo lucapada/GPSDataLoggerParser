@@ -1,20 +1,15 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
-from random import randrange
-from typing import List
 
+import os
 import platform
 import subprocess
-import sys, os
 import time
 
 import serial
-
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QFileDialog
+from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog
 
 from modules.BackendHandler import Handler
-from modules.Reporter import Observer, Observable
 from modules.Utils import msg2bits, splitBytes, strfind
 
 # from WindowsNT
@@ -32,7 +27,7 @@ CONSTELLATIONS = ["GPS","SBAS","Galileo","BeiDou","IMES","QZSS","GLONASS"]
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 
-class Ui_MainWindow(Observer):
+class Ui_MainWindow():
     def __init__(self, MainWindow):
         self.HANDLERS = {}
         self.CONNECTED_PORTS = []
@@ -326,11 +321,10 @@ class Ui_MainWindow(Observer):
             for d in range(self.model.rowCount()):
                 if self.model.item(d).checkState() == QtCore.Qt.Checked:
                     new_connection = self.model.item(d).text()
-                    new_handler = Handler(new_connection, self.cmbBaudRateUBX.currentText(), new_GNSS, self.txtUBXPath.text())
+                    new_handler = Handler(self, new_connection, self.cmbBaudRateUBX.currentText(), new_GNSS, self.txtUBXPath.text())
                     if True: #new_handler.isActive():
                         self.CONNECTED_PORTS.append(new_connection)
                         self.HANDLERS[new_connection] = new_handler
-                        self.HANDLERS[new_connection].appendObserver(self)
                         self.HANDLERS[new_connection].handleData()
                     else:
                         QtWidgets.QMessageBox.about(self.MainWindow, "Error", f"Cannot connect to {new_connection}")
@@ -350,7 +344,7 @@ class Ui_MainWindow(Observer):
 
         # Remove corresponding table element
         for port in inactive:
-            print(f"[LOGGER] {port} disconnected")
+            self.printLog(f"[LOGGER] {port} disconnected")
             index = self.CONNECTED_PORTS.index(port)
             self.CONNECTED_PORTS.pop(index)
 
@@ -426,9 +420,6 @@ class Ui_MainWindow(Observer):
         if r == qm.Yes:
             self.openFile(self.txtUBXPath.text())
 
-    def printLog(self, msg: str):
-        self.txtLogs.append(msg)
-
     def openFile(self, path):
         if platform.system() == "Windows":
             os.startfile(path)
@@ -499,9 +490,8 @@ class Ui_MainWindow(Observer):
             self.btnRecordUBX.setEnabled(False)
             self.btnStopUBX.setEnabled(False)
 
-    # Gestione Observer
-    def update(self, observable: Observable) -> None:
-        self.printLog(observable._messaggio)
+    def printLog(self, msg: str):
+        self.txtLogs.append(msg)
 
 if __name__ == "__main__":
     app = QApplication([])
