@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$USER_HOME$/Nextcloud/uni/API/AlgoritmiOrdinamento/.idea/AlgoritmiOrdinamento.iml" filepath="$USER_HOME$/Nextcloud/uni/API/AlgoritmiOrdinamento/.idea/AlgoritmiOrdinamento.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/GPSDataLoggerParser.iml" filepath="$PROJECT_DIR$/.idea/GPSDataLoggerParser.iml" />
       <module fileurl="file://$PROJECT_DIR$/../gnss-nav-py-main/.idea/gnss-nav-py-main.iml" filepath="$PROJECT_DIR$/../gnss-nav-py-main/.idea/gnss-nav-py-main.iml" />
     </modules>

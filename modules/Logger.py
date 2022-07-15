@@ -42,6 +42,10 @@ class Logger():
         #
         # return data
 
+
+    def printLog(self, msg):
+        self.mainWindow.printLog("[LOGGER \"" + self.serial.port + "\"]: " + msg)
+
     # --------------- serial FUNCTION ---------------
     # OK
     def open_connection(self):
