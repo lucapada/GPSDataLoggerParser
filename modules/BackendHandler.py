@@ -7,7 +7,7 @@ class Handler(object):
     def __init__(self, mainWindow, port: str, baudrate = 9600, gnss: dict = {}, filePath: str = "."):
         self.baudrate = baudrate
         self.connection = SerialParser.SerialParser(mainWindow, port, self.baudrate)
-        self.logger = Logger.Logger(mainWindow, self.connection, gnss, filePath)
+        self.logger = Logger.Logger(mainWindow, self.connection, filePath, gnss)
         self.thread = ThreadWithReturn.ThreadWithReturn(target=self.logger.logData)
 
     def isActive(self):
@@ -15,6 +15,9 @@ class Handler(object):
 
     def handleData(self):
         self.thread.start()
+
+    def stop(self):
+        self.thread.stop()
 
     def join(self):
         self.connection.close()

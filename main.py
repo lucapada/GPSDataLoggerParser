@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import platform
 import subprocess
+import sys
+import threading
 import time
 
 import serial
@@ -15,9 +17,12 @@ from modules.Utils import msg2bits, splitBytes, strfind
 # from WindowsNT
 if os.name == 'nt':
     from serial.tools.list_ports_windows import comports
+    rtklibPath = "C:/Users/lucap/Desktop/GPSDataLoggerParser/RTKLIB_bin-master/bin/convbin.exe"
 # Mac & Linux are POSIX compliant (UNIX like systems)
 elif os.name == 'posix':
     from serial.tools.list_ports_posix import comports
+    #TODO: sistema su linux
+    rtklibPath = os.path.dirname(os.path.abspath(__file__) + "/RTKLIB-rtklib_2.4.3/app/consapp/convbin/")
 else:
     raise ImportError("OS Platform not properly detected")
 
@@ -25,7 +30,6 @@ BAUDRATES = ['9600', '57600']
 CONSTELLATIONS = ["GPS","SBAS","Galileo","BeiDou","IMES","QZSS","GLONASS"]
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-
 
 class Ui_MainWindow():
     def __init__(self, MainWindow):
@@ -277,8 +281,8 @@ class Ui_MainWindow():
     def discoverDevices(self):
         self.cmbBaudRateUBX.setEnabled(False)
         ports = self.getPorts()
-        ports.append("ciao")
-        ports.append("come va")
+        # ports.append("ciao")
+        # ports.append("come va")
         self.model = QStandardItemModel()
         for p in ports:
             item = QStandardItem(p)
@@ -322,7 +326,7 @@ class Ui_MainWindow():
                 if self.model.item(d).checkState() == QtCore.Qt.Checked:
                     new_connection = self.model.item(d).text()
                     new_handler = Handler(self, new_connection, self.cmbBaudRateUBX.currentText(), new_GNSS, self.txtUBXPath.text())
-                    if True: #new_handler.isActive():
+                    if new_handler.isActive():
                         self.CONNECTED_PORTS.append(new_connection)
                         self.HANDLERS[new_connection] = new_handler
                         self.HANDLERS[new_connection].handleData()
@@ -337,7 +341,7 @@ class Ui_MainWindow():
 
         if len(handler_keys) > 0:
             for key in handler_keys:
-                self.HANDLERS[key].logger.deactivateLogger()
+                self.HANDLERS[key].stop()
                 #if not self.HANDLERS[key].logger.is_active:
                 self.HANDLERS.pop(key, "")
                 inactive.append(key)
@@ -368,6 +372,7 @@ class Ui_MainWindow():
         names, _ = file_name.getOpenFileNames(self.MainWindow, "Open files", ".", filter)
         self.modelFiles = QStandardItemModel()
         for n in names:
+            self.rinexGroupBox.setEnabled(True)
             item = QStandardItem(n)
             item.setCheckable(True)
             checked = False  # di default non sono selezionati
@@ -375,6 +380,7 @@ class Ui_MainWindow():
             item.setCheckState(check)
             self.modelFiles.appendRow(item)
         self.filesListView.setModel(self.modelFiles)
+
 
     def removeFiles(self):
         selected = 0
@@ -403,6 +409,59 @@ class Ui_MainWindow():
         self.cmbBaudRateUBX.setEnabled(False)
 
         # TODO: effettuare qui la conversione
+        self.txtLogs.clear()
+
+        # serial devices
+        if self.model:
+            for d in range(self.model.rowCount()):
+                if self.model.item(d).checkState() == QtCore.Qt.Checked:
+                    new_connection = self.model.item(d).text()
+
+                    infile = self.txtUBXPath.text() + "/" + new_connection + "_rover.ubx"
+                    outfile_obs = self.txtUBXPath.text() + "/" + new_connection + "_rinex.obs"
+                    outfile_nav = self.txtUBXPath.text() + "/" + new_connection + "_rinex.nav"
+                    convbin_path = rtklibPath
+                    version = "3.01"
+                    if self.rinexVersion305_radio.isChecked():
+                        version = "3.05"
+
+                    if self.chkSplitRinexNav.checkState() == QtCore.Qt.Checked:
+                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (convbin_path, infile, outfile_obs, outfile_nav, version)
+                    else:
+                        run_convbin_obs = "%s %s -o %s -n %s -od -os -oi -ot -ol -v %s" % (convbin_path, infile, outfile_obs, outfile_nav, version)
+
+                    self.printLog("[RINEX " + new_connection + "] " + run_convbin_obs)
+                    print("[RINEX " + new_connection + "] " + "************* Conversion ubx --> RINEX *************")
+                    os.system(run_convbin_obs)
+                    print("[RINEX " + new_connection + "] " + "************* Done! *************")
+
+        # ubx files
+        if self.modelFiles:
+            for f in range(self.modelFiles.rowCount()):
+                if self.modelFiles.item(f).checkState() == QtCore.Qt.Checked:
+                    ubxFile = self.modelFiles.item(f).text()
+
+                    infile = ubxFile
+                    pathname, extension = os.path.splitext(infile)
+                    outfile_obs = self.txtUBXPath.text() + "/" + pathname.split('/')[-1] + "_rinex.obs"
+                    outfile_nav = self.txtUBXPath.text() + "/" + pathname.split('/')[-1] + "_rinex.nav"
+                    convbin_path = rtklibPath
+                    version = "3.01"
+                    if self.rinexVersion305_radio.isChecked():
+                        version = "3.05"
+
+                    if self.chkSplitRinexNav.checkState() == QtCore.Qt.Checked:
+                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (
+                        convbin_path, infile, outfile_obs, outfile_nav, version)
+                    else:
+                        run_convbin_obs = "%s %s -o %s -n %s -od -os -oi -ot -ol -v %s" % (
+                        convbin_path, infile, outfile_obs, outfile_nav, version)
+
+                    self.printLog("[RINEX " + pathname.split('/')[-1] + "] " + run_convbin_obs)
+                    print("[RINEX " + pathname.split('/')[-1] + "] " + "************* Conversion ubx --> RINEX *************")
+                    os.system(run_convbin_obs)
+                    print("[RINEX " + pathname.split('/')[-1] + "] " + "************* Done! *************")
+
 
         self.btnRunRINEX.setEnabled(True)
         self.chkSplitRinexNav.setEnabled(True)
@@ -469,7 +528,7 @@ class Ui_MainWindow():
                 if l != 0:
                     self.printLog("u-blox receiver detected on port " + so.device)
                     active_ports.append(so.device)
-                    break
+                    # break
             s.close()
             del s
         # -------------------------------------------------------------------
@@ -491,7 +550,27 @@ class Ui_MainWindow():
             self.btnStopUBX.setEnabled(False)
 
     def printLog(self, msg: str):
-        self.txtLogs.append(msg)
+        self.test = GUIUpdater(msg)
+        self.test.start()
+        self.test.mySignal.connect(self.txtLogs.append)
+        # self.test.finished.connect(thread_finished)
+        self.test.wait()
+
+    # def thread_finished(self):
+    #    pass
+
+
+class GUIUpdater(QtCore.QThread):
+    mySignal = QtCore.pyqtSignal(str)
+
+    def __init__(self, msg):
+        super().__init__()
+        self.setPriority(QtCore.QThread.HighPriority)
+        self.msg = msg
+
+    def run(self):
+        self.mySignal.emit(self.msg)
+        pass
 
 if __name__ == "__main__":
     app = QApplication([])

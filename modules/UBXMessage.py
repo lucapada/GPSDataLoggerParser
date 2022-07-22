@@ -1,7 +1,7 @@
 from modules.UBXCodes import ublox_UBX_codes
 
 
-class UBXMessage:
+class UBXMessage():
     # il messaggio inizia sempre con questi due bytes
     SYNC_CHAR_1 = b'\xb5'
     SYNC_CHAR_2 = b'\x62'

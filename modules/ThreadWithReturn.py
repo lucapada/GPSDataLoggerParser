@@ -14,16 +14,19 @@ class ThreadWithReturn(Thread):
     # chiamata al costruttore padre
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.setDaemon(True)
 
     # override del metodo run(), necessario perché run chiama solo la funzione target.
     def run(self):
         target_function = getattr(self, _thread_target)
-
         # controlla se esiste la funzione target, e nel caso la chiama passandogli gli argomenti del thread.
         if target_function:
-            self._return = target_function(*getattr(self,_thread_args), **getattr(self,_thread_kwargs))
+            self._return = target_function(*getattr(self, _thread_args), **getattr(self, _thread_kwargs))
 
     # chiamata al join padre
     def join(self, *args, **kwargs):
         super().join(*args, **kwargs)
         return self._return
+
+    def stop(self):
+        setattr(self, "running", False)
