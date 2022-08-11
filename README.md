@@ -16,7 +16,9 @@ Il software necessita l'installazione di Python per poter esseere eseguito. Una 
 ### Supporto
 Per qualsiasi informazione o segnalazione di possibili malfunzionamenti è possibile scrivere a luca.padalino@mail.polimi.it
 
-## Allegati
+## Allegati (cartella "docs")
 - Relazione
 - Presentazione
-- Documentazione del Codice Sorgente
+- Slides
+- Manuale Operativo
+- [Documentazione del Codice Sorgente](https://lucapada.github.io/GPSDataLoggerParser)
