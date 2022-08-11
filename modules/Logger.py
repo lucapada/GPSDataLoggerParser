@@ -1,5 +1,4 @@
 import datetime
-import json
 import math
 import threading
 import time
@@ -13,7 +12,20 @@ from .Utils import strfind, msg2bits, splitBytes, find, decode_NAV_TIMEBDS, deco
 
 
 class Logger():
+    """
+    Classe che gestisce la raccolta dati dal dispositivo.
+    """
+
     def __init__(self, mainWindow, active_serial: SerialParser, filePath: str, gnss: dict, weekChanges: bool):
+        """
+        Costruttore dell'oggetto.
+
+        :param mainWindow: collegamento alla GUI
+        :param active_serial: oggetto SerialParser relativo alla connessione aperta
+        :param filePath: percorso in cui salvare le elaborazioni
+        :param gnss: dizionario contenente i GNSS configurati, da cui ricevere dati
+        :param weekChanges: parametro booleano relativo all'inclusione del numero della settimana nel file inerente la sincronizzazione dei tempi tra GNSS e pc locale
+        """
         self.serial = active_serial
         self.is_active = True
         gnssObj = GNSS
@@ -32,13 +44,21 @@ class Logger():
         self.timeSyncNMEAFile = open(self.filePath + "/" + self.serial.port + "_NMEA_times.txt", "wb")
         self.nmeaFile = open(self.filePath + "/" + self.serial.port + "_NMEA.txt", "wb")
 
-    # Logger Activation
     def deactivateLogger(self):
+        """
+        Procedura che disattiva la periferica e riporta l'esito nella console.
+        :return:
+        """
         self.is_active = False
         self.printLog("[LOGGER] Deactivate Receiver")
 
     # Data Logging Main Function
     def logData(self):
+        """
+        Funzione principale per l'acquisizione dei dati. E' la funzione che viene eseguita al lancio del thread. Nel dettaglio, configura la periferica salvandone lo stato e indicando i messaggi da ricevere (NMEA-GGA, UBX-RXM-RAWX, UBX-RXM-SFRBX, UBX-CFG-MSG, UBX-CFG-CFG).
+        Successivamente si pone in ascolto ed elabora lo stream che riceve avvalendosi della funzione decode_ublox. Salva all'interno di files che vengono creati i risultati delle elaborazioni.
+        :return:
+        """
         try:
             t = threading.currentThread()
 
@@ -146,19 +166,25 @@ class Logger():
             self.printLog(errore)
 
     def printLog(self, msg):
-        print(msg, flush=True)
+        """
+        Funzione che stampa a video nella console presente nella GUI il messaggio passato via parametro.
+        :param msg: messaggio da stampare nella console.
+        :return:
+        """
+        # print(msg, flush=True)
         self.mainWindow.printLog("[LOGGER \"" + self.serial.port + "\"]: " + msg)
 
     # ---------- UBX FUNCTIONS ----------
     def configure_ublox(self, rate=1):
-        '''
+        """
         Questa funzione configura il ricevitore inviando la richiesta di configurazione (per ciascuna configurazione) un massimo di 3 volte.
         Inizialmente configura il ricevitore inviando un UBX-CFG-CFG.
         Successivamente imposta il rate (1Hz di default)
         Successivamente richiede che il ricevitore invii messaggi di tipo CFG-RAW-RAWX e CFG-RAW-SFRBX.
         Poi disabilita tutti gli NMEA, ad eccezione del GGA.
-        '''
-
+        :param rate: velocità (1Hz di default)
+        :return:
+        """
         # save receiver configuration
         self.printLog("Saving receiver configuration...")
         reply_SAVE = self.ublox_CFG_CFG('save')
@@ -299,9 +325,11 @@ class Logger():
         return reply_SAVE
 
     def ublox_CFG_CFG(self, action):
-        '''
+        """
         Funzione che invia messaggi di tipo UBX-CFG-CFG allo scopo di configurare il ricevitore.
-        '''
+        :param action: indica il tipo di azione abbinata al messaggio (salvataggio della configurazione, caricamento della configurazione salvata, reset del dispositivo)
+        :return:
+        """
         msg = UBXMessage("CFG", "CFG")
         # aggiungo la lunghezza
         lunghezzaPayload = 13
@@ -343,9 +371,9 @@ class Logger():
 
     def ublox_check_ACK(self, cls, id):
         '''
-        Controlla che arrivi un ACK dopo una poll.
-        :param cls:
-        :param id:
+        Controlla che arrivi un ACK dopo una poll per un dato messaggio.
+        :param cls: classe del messaggio
+        :param id: id del messaggio
         :return:
         '''
         out = False
@@ -389,9 +417,13 @@ class Logger():
         return out
 
     def ublox_CFG_MSG(self, cls, id, mode):
-        '''
+        """
         Invia un messaggio UBX-CFG-MSG indicando (mode = 1 o 0) al ricevitore di inviare/bloccare l'invio di un messaggio con quella classe/id.
-        '''
+        :param cls: classe del messaggio
+        :param id: identificativo del messaggio
+        :param mode: modalità (1 per voler ricevere il messaggio, 0 per non riceverlo)
+        :return:
+        """
         msg = UBXMessage("CFG", "MSG")
         # aggiungo la lunghezza
         lunghezzaPayload = 3
@@ -414,9 +446,13 @@ class Logger():
         return self.ublox_check_ACK("CFG", "MSG")
 
     def ublox_CFG_RATE(self, measRate, navRate, timeRef):
-        '''
+        """
         Invia un messaggio UBX-CFG-RATE, impostando measRate, navRate e timeRef.
-        '''
+        :param measRate: velocità misurazioni (in ms)
+        :param navRate: velocità navigazione (in ms)
+        :param timeRef: riferimento temporale
+        :return:
+        """
         msg = UBXMessage("CFG", "RATE")
         # aggiungo la lunghezza
         lunghezzaPayload = 6
@@ -443,9 +479,11 @@ class Logger():
         return self.ublox_check_ACK("CFG", "RATE")
 
     def ublox_CFG_GNSS(self, gnssParams):
-        '''
+        """
         Invia un messaggio UBX-CFG-GNSS attivando la ricezione di messaggi da quel determinato GNSS.
-        '''
+        :param gnssParams: informazioni GNSS
+        :return:
+        """
         msg = UBXMessage("CFG", "GNSS")
         # aggiungo la lunghezza
         lunghezzaPayload = 4 + 8 * len(gnssParams['constellations'])
@@ -485,9 +523,14 @@ class Logger():
         return out
 
     def ublox_poll_message(self, ClassLab, MsgIDLab, payload_length, parameter=0):
-        '''
+        """
         Invia la richiesta di messaggio al ricevitore.
-        '''
+        :param ClassLab: classe del messaggio richiesto
+        :param MsgIDLab: id del messaggio richiesto
+        :param payload_length: lunghezza del payload
+        :param parameter: eventuali parametri (0 per default)
+        :return:
+        """
         msg = UBXMessage(ClassLab, MsgIDLab)
         # aggiungo la lunghezza
         if (payload_length == 0):
@@ -511,14 +554,11 @@ class Logger():
         self.send_message(msg.getMessaggio(True), True, True)
 
     def decode_ublox(self, msg):
-        '''
-        Funzione che decodifica il messaggio proveniente dall'ublox (bytes).
-        Distingue NMEA o UBX e alla fine ritorna entrambi.
-
-        :param msg:
-        :param reporter:
+        """
+        Funzione che decodifica il messaggio proveniente dall'ublox (bytes). Distingue NMEA o UBX e alla fine ritorna entrambi.
+        :param msg: messaggio in bytes
         :return:
-        '''
+        """
         msg = "".join(msg2bits(splitBytes(msg)))
 
         messaggioUBX = "".join(msg2bits([UBXMessage.SYNC_CHAR_1, UBXMessage.SYNC_CHAR_2]))  # b5 62
@@ -682,10 +722,10 @@ class Logger():
         self.serial.open()
 
     def serial_close_connect(self):
-        '''
+        """
         Funzione che chiude e riapre la connessione.
         :return:
-        '''
+        """
         try:
             self.serial.close()
         except self.serial.SerialException as e:
@@ -695,12 +735,28 @@ class Logger():
         self.serial.open()
 
     def in_waiting(self):
+        """
+        Funzione che restituisce il numero di bytes nel buffer della periferica.
+        :return:
+        """
         return self.serial.in_waiting
 
     def read(self, howBytes: int):
+        """
+        Funzione che legge i bytes indicati come parametro.
+        :param howBytes: quanti bytes leggere dal buffer.
+        :return:
+        """
         return self.serial.read(howBytes)
 
     def send_message(self, messaggio, freeQueue=False, jumpException=False):
+        """
+        Funzione che invia un messaggio alla periferica liberando o meno la coda e ignorando o meno le possibili eccezioni.
+        :param messaggio: messaggio in bytes da inviare
+        :param freeQueue: booleano che indica se liberare o meno i bytes nel buffer di entrata
+        :param jumpException: booleano che indica se restituire o meno eccezione in caso di errore
+        :return:
+        """
         if (freeQueue):
             bytes2read = self.serial.in_waiting
             if (bytes2read > 0):

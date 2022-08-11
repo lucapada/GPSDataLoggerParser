@@ -1,4 +1,10 @@
 def ublox_UBX_codes(classIn, idIn):
+    """
+    Restituisce l'intestazione del messaggio dato classe e id.
+    :param classIn:
+    :param idIn:
+    :return:
+    """
     classOut = 0
     idOut = 0
     if classIn == "AID":

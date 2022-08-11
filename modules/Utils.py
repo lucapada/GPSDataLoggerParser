@@ -1,28 +1,22 @@
 import datetime
 
-from modules import UBXMessage
-
-
-# OK - TEST
 def splitBytes(stream: bytes):
-    '''
+    """
     Riceve uno stream di bytes e crea un array contenente ciascun byte in ciascuna posizione.
     :param stream:
     :return:
-    '''
+    """
     splittedBytes = []
     for k in stream:
         splittedBytes.append(k.to_bytes(1, 'big'))
     return splittedBytes
 
-
-# OK - TEST
 def msg2bits(msgBytes: list):
-    '''
+    """
     Funzione che codifica ciascun byte presente nell'array "msgBytes" nel corrispettivo bit, ritornando una lista di bit.
     :param msgBytes:
     :return:
-    '''
+    """
     bits = []
     for n in msgBytes:
         i = int.from_bytes(n, 'little', signed=False)
@@ -32,6 +26,11 @@ def msg2bits(msgBytes: list):
 
 # Funzioni Custom
 def ieee754double(bits):
+    """
+    Ritorna la cifra reale dati 64 bit seguendo lo standard IEEE754.
+    :param bits:
+    :return:
+    """
     # rT_s = rcvTow_Bin[0:1]
     # rT_e = rcvTow_Bin[1:12]
     # rT_m = rcvTow_Bin[12:]
@@ -51,6 +50,11 @@ def ieee754double(bits):
 
 
 def ieee754single(bits):
+    """
+    Ritorna la cifra reale dati 32 bit seguendo lo standard IEEE754.
+    :param bits:
+    :return:
+    """
     s = int(bits[0])
     e = int(bits[1:9], 2)
     m = bits[9:32]
@@ -76,7 +80,6 @@ def ismember(A: list, B: list):
     return out
 
 
-# OK - TEST
 def strfind(what: bytes, where: bytes):
     '''
     Funzione che trova la stringa "what" nella stringa "where" e restituisce un array di corrispondenze.
@@ -93,9 +96,15 @@ def strfind(what: bytes, where: bytes):
         c += 1
     return corr
 
-
-# OK - TEST
 def find(elements, greaterThan, topK, equals=False):
+    """
+    Funzione che ricerca i primi topK elementi maggiori/uguali di un dato elemento all'interno di una collezione di elementi.
+    :param elements: collezione di elementi
+    :param greaterThan: elemento soglia
+    :param topK: numero di elementi da restituire
+    :param equals: gli elementi devono essere uguali o maggiori di greaterThan?
+    :return:
+    """
     i = []
     c = 0
     for v in range(len(elements)):
@@ -108,8 +117,13 @@ def find(elements, greaterThan, topK, equals=False):
                 c += 1
     return i
 
-    # --------------- DECODING FUNCTIONS ---------------
+# --------------- DECODING FUNCTIONS ---------------
 def decode_NAV_TIMEBDS(msg):
+    """
+    Ritorna l'oggetto json decodificando il messaggio UBX-NAV-TIMEBDS
+    :param msg:
+    :return:
+    """
     # msg = splitBytes(msg)
     data = []
     data.append("NAV-TIMEBDS")
@@ -128,8 +142,12 @@ def decode_NAV_TIMEBDS(msg):
     })
     return data
 
-
 def decode_NAV_TIMEGAL(msg):
+    """
+    Ritorna l'oggetto json decodificando il messaggio UBX-NAV-TIMEGAL
+    :param msg:
+    :return:
+    """
     # msg = splitBytes(msg)
     data = []
     data.append("NAV-TIMEGAL")
@@ -148,8 +166,12 @@ def decode_NAV_TIMEGAL(msg):
     })
     return data
 
-
 def decode_NAV_TIMEGPS(msg):
+    """
+    Ritorna l'oggetto json decodificando il messaggio UBX-NAV-TIMEGPS
+    :param msg:
+    :return:
+    """
     # msg = splitBytes(msg)
     data = []
     data.append("NAV-TIMEGPS")
@@ -167,8 +189,12 @@ def decode_NAV_TIMEGPS(msg):
     })
     return data
 
-
 def decode_NAV_TIMEGLO(msg):
+    """
+    Ritorna l'oggetto json decodificando il messaggio UBX-NAV-TIMEGLO
+    :param msg:
+    :return:
+    """
     # msg = splitBytes(msg)
     data = []
     data.append("NAV-TIMEGLO")
@@ -186,8 +212,12 @@ def decode_NAV_TIMEGLO(msg):
     })
     return data
 
-
 def decode_NAV_TIMEUTC(msg):
+    """
+    Ritorna l'oggetto json decodificando il messaggio UBX-NAV-TIMEUTC
+    :param msg:
+    :return:
+    """
     # msg = splitBytes(msg)
     data = []
     data.append("NAV-TIMEUTC")
@@ -211,8 +241,12 @@ def decode_NAV_TIMEUTC(msg):
     })
     return data
 
-
 def decode_RXM_RAWX(msg):
+    """
+    Ritorna l'oggetto json decodificando il messaggio UBX-RXM-RAWX
+    :param msg:
+    :return:
+    """
     # msg = splitBytes(msg)
     data = []
     data.append("RXM-RAWX")

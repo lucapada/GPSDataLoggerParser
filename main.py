@@ -5,7 +5,6 @@ import os
 import platform
 import subprocess
 import time
-from datetime import datetime
 
 import serial
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
@@ -32,7 +31,15 @@ CONSTELLATIONS = ["GPS","SBAS","Galileo","BeiDou","IMES","QZSS","GLONASS"]
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 class Ui_MainWindow():
+    """
+    Classe che inizializza la GUI.
+    """
+
     def __init__(self, MainWindow):
+        """
+        Configura la UI preparando gli elementi grafici, bloccandoli e riempendoli.
+        :param MainWindow: finestra in cui lavorare
+        """
         self.HANDLERS = {}
         self.CONNECTED_PORTS = []
 
@@ -74,6 +81,10 @@ class Ui_MainWindow():
         self.btnRemoveSelectedFile.clicked.connect(self.removeFiles)
 
     def setupUi(self):
+        """
+        Metodo che costruisce gli elementi aggiungendoli ai vari elementi contenitori. Aggiunge i contenitori alla GUI.
+        :return:
+        """
         MainWindow = self.MainWindow
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1023, 589)
@@ -244,6 +255,11 @@ class Ui_MainWindow():
         self.model = None
 
     def retranslateUi(self, MainWindow):
+        """
+        Metodo che imposta le stringhe relative ai testi e titoli dei vari elementi creati.
+        :param MainWindow:
+        :return:
+        """
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "GPSDataLoggerParser"))
         self.label.setText(_translate("MainWindow", "NMEA and RINEX\noutput path:"))
@@ -271,6 +287,10 @@ class Ui_MainWindow():
 
     # EVENTS
     def chooseFolder(self):
+        """
+        Metodo invocato su pressione del pulsante per la scelta della directory di lavoro.
+        :return:
+        """
         # scelgo la cartella
         folder = QFileDialog.getExistingDirectory(self.MainWindow, "Select Folder")
         self.txtUBXPath.setText(folder)
@@ -281,6 +301,10 @@ class Ui_MainWindow():
         self.btnStopUBX.setEnabled(False)
 
     def discoverDevices(self):
+        """
+        Metodo che ricerca gli ublox connessi alle porte COM e li aggiunge alla checklist.
+        :return:
+        """
         self.cmbBaudRateUBX.setEnabled(False)
         ports = self.getPorts()
         self.model = QStandardItemModel()
@@ -295,6 +319,10 @@ class Ui_MainWindow():
         self.cmbBaudRateUBX.setEnabled(True)
 
     def recordUBXs(self):
+        """
+        Metodo che si occupa di avviare il processo di registrazione degli stream realtime e multithreading. Viene invocato su pressione del pulsante "Record".
+        :return:
+        """
         new_GNSS = {
             "GPS": 0,
             "SBAS": 0,
@@ -343,6 +371,10 @@ class Ui_MainWindow():
             QtWidgets.QMessageBox.about(self.MainWindow, "Error", "You don't have selected any GNSS.")
 
     def stopUBXs(self):
+        """
+        Metodo che interrompe la registrazione degli stream e quindi richiede la terminazione dei thread.
+        :return:
+        """
         inactive = []
         handler_keys = list(self.HANDLERS.keys())
 
@@ -373,6 +405,10 @@ class Ui_MainWindow():
             self.rinexGroupBox.setEnabled(True)
 
     def loadFiles(self):
+        """
+        Metodo che apre un prompt per la raccolta dei files da aggiungere alla checklist.
+        :return:
+        """
         filter = "UBX (*.ubx)"
         file_name = QtWidgets.QFileDialog()
         file_name.setFileMode(QFileDialog.ExistingFiles)
@@ -410,6 +446,10 @@ class Ui_MainWindow():
         self.filesListView.setModel(self.modelFiles)
 
     def removeFiles(self):
+        """
+        Metodo che elimina i files dalla checklist.
+        :return:
+        """
         selected = 0
         r2del = []
         for f in range(self.modelFiles.rowCount()):
@@ -424,6 +464,10 @@ class Ui_MainWindow():
             self.filesListView.setModel(self.modelFiles)
 
     def startRinex(self):
+        """
+        Metodo che avvia il processo di generazione dei files RINEX eseguendo CONVBIN.
+        :return:
+        """
         self.btnRunRINEX.setEnabled(False)
         self.chkSplitRinexNav.setEnabled(False)
         self.rinexVersion301_radio.setEnabled(False)
@@ -506,6 +550,11 @@ class Ui_MainWindow():
             self.openFile(self.txtUBXPath.text())
 
     def openFile(self, path):
+        """
+        Metodo usato per l'apertura di un percorso nell'esplora risorse.
+        :param path:
+        :return:
+        """
         if platform.system() == "Windows":
             os.startfile(path)
         elif platform.system() == "Darwin":
@@ -514,6 +563,10 @@ class Ui_MainWindow():
             subprocess.Popen(["xdg-open", path])
 
     def getPorts(self) -> list:
+        """
+        Metodo che ritorna tutte le porte COM del pc a cui sono connessi ricevitori ublox.
+        :return:
+        """
         serial_objects = comports()
         total = len(serial_objects)
 
@@ -563,6 +616,10 @@ class Ui_MainWindow():
         return active_ports
 
     def toggleUBXControl(self):
+        """
+        Metodo che abilita e disabilita le checkbox di checklist.
+        :return:
+        """
         selected = 0
         for c in range(self.model.rowCount()):
             item = self.model.item(c)
@@ -576,16 +633,24 @@ class Ui_MainWindow():
             self.btnStopUBX.setEnabled(False)
 
     def printLog(self, msg: str):
+        """
+        Metodo che si occupa di stampare un messaggio nella console aggiungengolo in coda.
+        :param msg: messaggio da stampare
+        :return:
+        """
         self.test = GUIUpdater(msg)
         self.test.start()
         self.test.mySignal.connect(self.txtLogs.append)
         # self.test.finished.connect(thread_finished)
         self.test.wait()
 
-    # def thread_finished(self):
-    #    pass
 
 def decode_ublox_file(msg):
+    """
+    Funzione che decodifica lo stream di file caricati. Costruisce soltanto il file NMEA.
+    :param msg:
+    :return:
+    """
     msg = "".join(msg2bits(splitBytes(msg)))
 
     messaggioUBX = "".join(msg2bits([UBXMessage.SYNC_CHAR_1, UBXMessage.SYNC_CHAR_2]))  # b5 62
@@ -734,6 +799,9 @@ def decode_ublox_file(msg):
     return (data, NMEA_sentences)
 
 class GUIUpdater(QtCore.QThread):
+    """
+    Classe che si occupa di registrare un log in una queue al fine di evitare corse critiche tra i thread che acquisiscono dai device in parallelo e l'unico thread che gestisce la gui.
+    """
     mySignal = QtCore.pyqtSignal(str)
 
     def __init__(self, msg):

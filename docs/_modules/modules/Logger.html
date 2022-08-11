@@ -1,0 +1,872 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>modules.Logger &#8212; GPSDataLoggerParser 1.0.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css" />
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for modules.Logger</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">SerialParser</span>
+<span class="kn">from</span> <span class="nn">.GNSS</span> <span class="kn">import</span> <span class="n">GNSS</span>
+<span class="kn">from</span> <span class="nn">.UBXMessage</span> <span class="kn">import</span> <span class="n">UBXMessage</span>
+<span class="kn">from</span> <span class="nn">.UBXCodes</span> <span class="kn">import</span> <span class="n">ublox_UBX_codes</span>
+<span class="kn">from</span> <span class="nn">.Utils</span> <span class="kn">import</span> <span class="n">strfind</span><span class="p">,</span> <span class="n">msg2bits</span><span class="p">,</span> <span class="n">splitBytes</span><span class="p">,</span> <span class="n">find</span><span class="p">,</span> <span class="n">decode_NAV_TIMEBDS</span><span class="p">,</span> <span class="n">decode_NAV_TIMEGAL</span><span class="p">,</span> <span class="n">decode_NAV_TIMEGPS</span><span class="p">,</span> \
+    <span class="n">decode_NAV_TIMEGLO</span><span class="p">,</span> <span class="n">decode_NAV_TIMEUTC</span><span class="p">,</span> <span class="n">decode_RXM_RAWX</span>
+
+
+<div class="viewcode-block" id="Logger"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger">[docs]</a><span class="k">class</span> <span class="nc">Logger</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Classe che gestisce la raccolta dati dal dispositivo.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mainWindow</span><span class="p">,</span> <span class="n">active_serial</span><span class="p">:</span> <span class="n">SerialParser</span><span class="p">,</span> <span class="n">filePath</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">gnss</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">weekChanges</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Costruttore dell&#39;oggetto.</span>
+
+<span class="sd">        :param mainWindow: collegamento alla GUI</span>
+<span class="sd">        :param active_serial: oggetto SerialParser relativo alla connessione aperta</span>
+<span class="sd">        :param filePath: percorso in cui salvare le elaborazioni</span>
+<span class="sd">        :param gnss: dizionario contenente i GNSS configurati, da cui ricevere dati</span>
+<span class="sd">        :param weekChanges: parametro booleano relativo all&#39;inclusione del numero della settimana nel file inerente la sincronizzazione dei tempi tra GNSS e pc locale</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">serial</span> <span class="o">=</span> <span class="n">active_serial</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_active</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">gnssObj</span> <span class="o">=</span> <span class="n">GNSS</span>
+        <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">gnssObj</span><span class="p">[</span><span class="s1">&#39;constellations&#39;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">gnss</span><span class="p">[</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;gnss&#39;</span><span class="p">]]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">g</span><span class="p">[</span><span class="s1">&#39;enable&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">g</span><span class="p">[</span><span class="s1">&#39;enable&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gnss</span> <span class="o">=</span> <span class="n">gnssObj</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filePath</span> <span class="o">=</span> <span class="n">filePath</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mainWindow</span> <span class="o">=</span> <span class="n">mainWindow</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weekChanges</span> <span class="o">=</span> <span class="n">weekChanges</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ubxFile</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">port</span> <span class="o">+</span> <span class="s2">&quot;_rover.ubx&quot;</span><span class="p">,</span><span class="s2">&quot;wb&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">timeSyncFile</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">port</span> <span class="o">+</span> <span class="s2">&quot;_times.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">timeSyncNMEAFile</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">port</span> <span class="o">+</span> <span class="s2">&quot;_NMEA_times.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nmeaFile</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">port</span> <span class="o">+</span> <span class="s2">&quot;_NMEA.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Logger.deactivateLogger"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.deactivateLogger">[docs]</a>    <span class="k">def</span> <span class="nf">deactivateLogger</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Procedura che disattiva la periferica e riporta l&#39;esito nella console.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_active</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;[LOGGER] Deactivate Receiver&quot;</span><span class="p">)</span></div>
+
+    <span class="c1"># Data Logging Main Function</span>
+<div class="viewcode-block" id="Logger.logData"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.logData">[docs]</a>    <span class="k">def</span> <span class="nf">logData</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Funzione principale per l&#39;acquisizione dei dati. E&#39; la funzione che viene eseguita al lancio del thread. Nel dettaglio, configura la periferica salvandone lo stato e indicando i messaggi da ricevere (NMEA-GGA, UBX-RXM-RAWX, UBX-RXM-SFRBX, UBX-CFG-MSG, UBX-CFG-CFG).</span>
+<span class="sd">        Successivamente si pone in ascolto ed elabora lo stream che riceve avvalendosi della funzione decode_ublox. Salva all&#39;interno di files che vengono creati i risultati delle elaborazioni.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">currentThread</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_active</span><span class="p">:</span>
+                <span class="c1"># 1) chiudo e riapro la connessione</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">isOpen</span><span class="p">():</span>
+                    <span class="c1"># 2) configurazione UBLOX</span>
+                    <span class="n">replySave</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">configure_ublox</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+                    <span class="c1"># 3) COLLEZIONE DATI</span>
+                    <span class="n">tic</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+                    <span class="n">receiverDelay</span> <span class="o">=</span> <span class="mf">0.05</span>
+
+                    <span class="c1"># 3.1) inizio raccolta dati</span>
+                    <span class="n">rover_1</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="n">rover_2</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="k">while</span> <span class="p">(</span><span class="n">rover_1</span> <span class="o">!=</span> <span class="n">rover_2</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">rover_1</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">rover_1</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">):</span>
+                        <span class="n">currentTime</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span> <span class="o">-</span> <span class="n">tic</span>
+                        <span class="n">rover_1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_waiting</span><span class="p">()</span>
+                        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">receiverDelay</span><span class="p">)</span>
+                        <span class="n">rover_2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_waiting</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%.2f</span><span class="s2"> sec (</span><span class="si">%4d</span><span class="s2"> bytes -&gt; </span><span class="si">%4d</span><span class="s2"> bytes)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">currentTime</span><span class="o">.</span><span class="n">seconds</span><span class="p">,</span> <span class="n">rover_1</span><span class="p">,</span> <span class="n">rover_2</span><span class="p">))</span>
+
+                    <span class="c1"># svuoto la porta raccogliendo i dati inviati finora e depositandoli in data_rover</span>
+                    <span class="n">data_rover</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">rover_1</span><span class="p">)</span>
+
+                    <span class="c1"># 3.3) mi metto in ascolto perenne</span>
+                    <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_active</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="s2">&quot;running&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
+                        <span class="n">currentTime</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span> <span class="o">-</span> <span class="n">tic</span>
+                        <span class="n">rover_init</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_waiting</span><span class="p">()</span>
+                        <span class="n">rover_1</span> <span class="o">=</span> <span class="n">rover_init</span>
+                        <span class="n">rover_2</span> <span class="o">=</span> <span class="n">rover_init</span>
+                        <span class="n">dtMax_rover</span> <span class="o">=</span> <span class="mi">2</span>
+
+                        <span class="k">while</span> <span class="p">(</span><span class="n">rover_1</span> <span class="o">!=</span> <span class="n">rover_2</span> <span class="ow">or</span> <span class="n">rover_1</span> <span class="o">==</span> <span class="n">rover_init</span><span class="p">)</span> <span class="ow">and</span> <span class="n">currentTime</span><span class="o">.</span><span class="n">seconds</span> <span class="o">&lt;</span> <span class="n">dtMax_rover</span><span class="p">:</span>
+                            <span class="n">currentTime</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span> <span class="o">-</span> <span class="n">tic</span>
+                            <span class="n">rover_1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_waiting</span><span class="p">()</span>
+                            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">receiverDelay</span><span class="p">)</span>
+                            <span class="n">rover_2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_waiting</span><span class="p">()</span>
+
+                        <span class="k">if</span><span class="p">(</span><span class="n">rover_1</span> <span class="o">==</span> <span class="n">rover_2</span><span class="p">)</span> <span class="ow">and</span> <span class="n">rover_1</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">data_rover</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">rover_1</span><span class="p">)</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">ubxFile</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">data_rover</span><span class="p">)</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%.2f</span><span class="s2"> sec (</span><span class="si">%d</span><span class="s2"> bytes)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">currentTime</span><span class="o">.</span><span class="n">seconds</span><span class="p">,</span> <span class="n">rover_1</span><span class="p">))</span>
+
+                            <span class="c1"># TODO: dopo 60 secondi raccolgo i tempi</span>
+                            <span class="c1"># if currentTime.seconds == 60:</span>
+                            <span class="c1">#     # mando le poll per il timesync dopo 60 secondi di osservazione</span>
+                            <span class="c1">#     self.ublox_poll_message(&quot;NAV&quot;, &quot;TIMEUTC&quot;, 0, 0)</span>
+                            <span class="c1">#     if self.gnss[&#39;constellations&#39;][0][&#39;enable&#39;] == 1:</span>
+                            <span class="c1">#         self.ublox_poll_message(&quot;NAV&quot;, &quot;TIMEGPS&quot;, 0, 0)</span>
+                            <span class="c1">#     if self.gnss[&#39;constellations&#39;][2][&#39;enable&#39;] == 1:</span>
+                            <span class="c1">#         self.ublox_poll_message(&quot;NAV&quot;, &quot;TIMEGAL&quot;, 0, 0)</span>
+                            <span class="c1">#     if self.gnss[&#39;constellations&#39;][3][&#39;enable&#39;] == 1:</span>
+                            <span class="c1">#         self.ublox_poll_message(&quot;NAV&quot;, &quot;TIMEBDS&quot;, 0, 0)</span>
+                            <span class="c1">#     if self.gnss[&#39;constellations&#39;][6][&#39;enable&#39;] == 1:</span>
+                            <span class="c1">#         self.ublox_poll_message(&quot;NAV&quot;, &quot;TIMEGLO&quot;, 0, 0)</span>
+
+                            <span class="c1"># leggo il datarover</span>
+                            <span class="p">(</span><span class="n">ubxData</span><span class="p">,</span> <span class="n">nmeaData</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decode_ublox</span><span class="p">(</span><span class="n">data_rover</span><span class="p">)</span>
+
+                            <span class="nb">type</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+                            <span class="k">if</span> <span class="p">(</span><span class="n">nmeaData</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">ubxData</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nmeaData</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">ubxData</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+                                <span class="k">if</span> <span class="n">nmeaData</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">nmeaData</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                                    <span class="nb">type</span> <span class="o">+=</span> <span class="s2">&quot; NMEA&quot;</span>
+                                    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">nmeaData</span><span class="p">:</span>
+                                        <span class="bp">self</span><span class="o">.</span><span class="n">nmeaFile</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">bytes</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">encode</span><span class="p">()))</span>
+                                        <span class="n">riga</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">n</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+                                        <span class="bp">self</span><span class="o">.</span><span class="n">timeSyncNMEAFile</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">bytes</span><span class="p">(</span><span class="n">riga</span><span class="o">.</span><span class="n">encode</span><span class="p">()))</span>
+                                <span class="k">if</span> <span class="n">ubxData</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">ubxData</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                                    <span class="nb">type</span> <span class="o">+=</span> <span class="s2">&quot;UBX&quot;</span>
+                                    <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">ubxData</span><span class="p">:</span>
+                                        <span class="k">if</span> <span class="n">u</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;RXM-RAWX&quot;</span><span class="p">:</span>
+                                            <span class="n">weekInfo</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+                                            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">weekChanges</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+                                                <span class="n">weekInfo</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;week&#39;</span><span class="p">])</span>
+                                            <span class="n">riga</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;rcvTow&#39;</span><span class="p">])</span> <span class="o">+</span> <span class="n">weekInfo</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+                                            <span class="bp">self</span><span class="o">.</span><span class="n">timeSyncFile</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">bytes</span><span class="p">(</span><span class="n">riga</span><span class="o">.</span><span class="n">encode</span><span class="p">()))</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Decoded </span><span class="si">%s</span><span class="s2"> message(s)&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">)</span>
+                            <span class="n">currentTime</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span> <span class="o">-</span> <span class="n">tic</span>
+
+                    <span class="c1"># X-1) ripristino configurazione originale</span>
+                    <span class="k">if</span> <span class="n">replySave</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Restoring saved u-blox receiver configuration...&quot;</span><span class="p">)</span>
+                        <span class="n">replyLoad</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_CFG</span><span class="p">(</span><span class="s2">&quot;load&quot;</span><span class="p">)</span>
+                        <span class="n">tries</span> <span class="o">=</span> <span class="mi">0</span>
+                        <span class="k">while</span> <span class="n">replySave</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">replyLoad</span><span class="p">:</span>
+                            <span class="n">tries</span> <span class="o">+=</span> <span class="mi">1</span>
+                            <span class="k">if</span> <span class="n">tries</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">:</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;It was not possible to reload the receiver previous configuration.&quot;</span><span class="p">)</span>
+                                <span class="k">break</span>
+                            <span class="n">replyLoad</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_CFG</span><span class="p">(</span><span class="s2">&quot;load&quot;</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">deactivateLogger</span><span class="p">()</span>
+                <span class="c1"># X) chiudo gli stream</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ubxFile</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">timeSyncFile</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">nmeaFile</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Closed logging files. Ready for RINEX conversion.&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Impossible to start logging: device is not enabled.&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">errore</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;LOGGER ERROR&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="n">errore</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Logger.printLog"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.printLog">[docs]</a>    <span class="k">def</span> <span class="nf">printLog</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Funzione che stampa a video nella console presente nella GUI il messaggio passato via parametro.</span>
+<span class="sd">        :param msg: messaggio da stampare nella console.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># print(msg, flush=True)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mainWindow</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;[LOGGER </span><span class="se">\&quot;</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">port</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\&quot;</span><span class="s2">]: &quot;</span> <span class="o">+</span> <span class="n">msg</span><span class="p">)</span></div>
+
+    <span class="c1"># ---------- UBX FUNCTIONS ----------</span>
+<div class="viewcode-block" id="Logger.configure_ublox"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.configure_ublox">[docs]</a>    <span class="k">def</span> <span class="nf">configure_ublox</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Questa funzione configura il ricevitore inviando la richiesta di configurazione (per ciascuna configurazione) un massimo di 3 volte.</span>
+<span class="sd">        Inizialmente configura il ricevitore inviando un UBX-CFG-CFG.</span>
+<span class="sd">        Successivamente imposta il rate (1Hz di default)</span>
+<span class="sd">        Successivamente richiede che il ricevitore invii messaggi di tipo CFG-RAW-RAWX e CFG-RAW-SFRBX.</span>
+<span class="sd">        Poi disabilita tutti gli NMEA, ad eccezione del GGA.</span>
+<span class="sd">        :param rate: velocità (1Hz di default)</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># save receiver configuration</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Saving receiver configuration...&quot;</span><span class="p">)</span>
+        <span class="n">reply_SAVE</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_CFG</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">)</span>
+        <span class="n">tries</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="p">(</span><span class="n">reply_SAVE</span> <span class="o">==</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">tries</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">tries</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">):</span>
+                <span class="k">break</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">serial_close_connect</span><span class="p">()</span>
+            <span class="n">reply_SAVE</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_CFG</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">reply_SAVE</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;done&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;failed&quot;</span><span class="p">)</span>
+
+        <span class="c1">## set measurement rate</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">rate</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">rate</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Setting measurement rate to &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">rate</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;Hz...&quot;</span><span class="p">)</span>
+        <span class="n">reply_RATE</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_RATE</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="mi">1000</span> <span class="o">/</span> <span class="n">rate</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">tries</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="p">(</span><span class="n">reply_RATE</span> <span class="o">==</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">tries</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">tries</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">):</span>
+                <span class="k">break</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">serial_close_connect</span><span class="p">()</span>
+            <span class="n">reply_RATE</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_RATE</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="mi">1000</span> <span class="o">/</span> <span class="n">rate</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">reply_RATE</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;done&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;failed&quot;</span><span class="p">)</span>
+
+        <span class="c1">## enable raw measurement</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Enabling raw data output (necessary for .obs RINEX file)...&quot;</span><span class="p">)</span>
+        <span class="n">reply_RAW</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;RXM&quot;</span><span class="p">,</span> <span class="s2">&quot;RAWX&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">tries</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="p">(</span><span class="n">reply_RAW</span> <span class="o">==</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">tries</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">tries</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">):</span>
+                <span class="k">break</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">serial_close_connect</span><span class="p">()</span>
+            <span class="n">reply_RAW</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;RXM&quot;</span><span class="p">,</span> <span class="s2">&quot;RAWX&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">reply_RAW</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;done&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;failed&quot;</span><span class="p">)</span>
+
+        <span class="c1">## enable SFRB buffer output!</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span>
+            <span class="s2">&quot;Enabling u-blox receiver subframe buffer (SFRBX) messages (necessary for .nav RINEX files)...&quot;</span><span class="p">)</span>
+        <span class="n">reply_SFRBX</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;RXM&quot;</span><span class="p">,</span> <span class="s2">&quot;SFRBX&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">tries</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="p">(</span><span class="n">reply_SFRBX</span> <span class="o">==</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">tries</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">tries</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">):</span>
+                <span class="k">break</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">serial_close_connect</span><span class="p">()</span>
+            <span class="n">reply_SFRBX</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;RXM&quot;</span><span class="p">,</span> <span class="s2">&quot;SFRBX&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">reply_SFRBX</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;done&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;failed&quot;</span><span class="p">)</span>
+
+        <span class="c1">## set GNSS</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Enabling u-blox receiver GNSS...&quot;</span><span class="p">)</span>
+        <span class="n">reply_GNSS</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_GNSS</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gnss</span><span class="p">)</span>
+        <span class="n">tries</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="p">(</span><span class="n">reply_GNSS</span> <span class="o">==</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">tries</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">tries</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">):</span>
+                <span class="k">break</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">serial_close_connect</span><span class="p">()</span>
+            <span class="n">reply_GNSS</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_GNSS</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gnss</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">reply_GNSS</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;done&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;failed&quot;</span><span class="p">)</span>
+
+        <span class="c1">## enable GGA messages, disable all others NMEA messages.</span>
+        <span class="c1">## check page 143 of the UBX manual.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Configuring u-blox receiver NMEA Standard/Proprietary messages:&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GGA&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;enabling GGA&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GLL&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling GLL&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GSA&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling GSA&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GSV&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling GSV&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;RMC&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling RMC&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;VTG&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling VTG&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GRS&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling GRS&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GST&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling GST&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;ZDA&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling ZDA&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GBS&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling GBS&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;DTM&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling DTM&quot;</span><span class="p">)</span>
+        <span class="c1">## nella versione 0.4.2 di goGPS mancano GBQ, GLQ, GNQ, GNS, GPQ, THS, TXT, VLW</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GBQ&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling GBQ&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GLQ&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling GLQ&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GNQ&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling GNQ&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GNS&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling GNS&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;GPQ&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling GPQ&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;THS&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling THS&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;TXT&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling TXT&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;NMEA&quot;</span><span class="p">,</span> <span class="s2">&quot;VLW&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling VLW&quot;</span><span class="p">)</span>
+
+        <span class="c1">## imposto NMEA proprietario</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;PUBX&quot;</span><span class="p">,</span> <span class="s2">&quot;POSITION&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling POSITION&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;PUBX&quot;</span><span class="p">,</span> <span class="s2">&quot;RATE&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling RATE&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;PUBX&quot;</span><span class="p">,</span> <span class="s2">&quot;SVSTATUS&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling SVSTATUS&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;PUBX&quot;</span><span class="p">,</span> <span class="s2">&quot;TIME&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling TIME&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ublox_CFG_MSG</span><span class="p">(</span><span class="s2">&quot;PUBX&quot;</span><span class="p">,</span> <span class="s2">&quot;CONFIG&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;disabling CONFIG&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">reply_SAVE</span></div>
+
+<div class="viewcode-block" id="Logger.ublox_CFG_CFG"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.ublox_CFG_CFG">[docs]</a>    <span class="k">def</span> <span class="nf">ublox_CFG_CFG</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">action</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Funzione che invia messaggi di tipo UBX-CFG-CFG allo scopo di configurare il ricevitore.</span>
+<span class="sd">        :param action: indica il tipo di azione abbinata al messaggio (salvataggio della configurazione, caricamento della configurazione salvata, reset del dispositivo)</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="n">UBXMessage</span><span class="p">(</span><span class="s2">&quot;CFG&quot;</span><span class="p">,</span> <span class="s2">&quot;CFG&quot;</span><span class="p">)</span>
+        <span class="c1"># aggiungo la lunghezza</span>
+        <span class="n">lunghezzaPayload</span> <span class="o">=</span> <span class="mi">13</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">lunghezzaPayload</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">))</span>
+        <span class="c1"># aggiungo le maschere</span>
+        <span class="n">clearMask</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">]</span>
+        <span class="n">saveMask</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">]</span>
+        <span class="n">loadMask</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">]</span>
+
+        <span class="c1"># a seconda dell&#39;action il valore della maschera cambia...</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">action</span> <span class="o">==</span> <span class="s2">&quot;save&quot;</span><span class="p">):</span>
+            <span class="c1"># saveMask = [b&quot;\xff&quot;, b&quot;\xff&quot;, b&quot;\x00&quot;, b&quot;\x00&quot;]</span>
+            <span class="n">saveMask</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x1f</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x1f</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="n">action</span> <span class="o">==</span> <span class="s2">&quot;clear&quot;</span><span class="p">):</span>
+            <span class="n">clearMask</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x1f</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x1f</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">]</span>
+            <span class="n">loadMask</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x1f</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x1f</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">]</span>
+            <span class="c1"># clearMask = [b&quot;\xff&quot;, b&quot;\xff&quot;, b&quot;\x00&quot;, b&quot;\x00&quot;]</span>
+            <span class="c1"># loadMask = [b&quot;\xff&quot;, b&quot;\xff&quot;, b&quot;\x00&quot;, b&quot;\x00&quot;]</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="n">action</span> <span class="o">==</span> <span class="s2">&quot;load&quot;</span><span class="p">):</span>
+            <span class="n">loadMask</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x1f</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x1f</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">]</span>
+            <span class="c1"># loadMask = [b&quot;\xff&quot;, b&quot;\xff&quot;, b&quot;\x00&quot;, b&quot;\x00&quot;]</span>
+
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">clearMask</span><span class="p">)</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">saveMask</span><span class="p">)</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">loadMask</span><span class="p">)</span>
+
+        <span class="c1"># 7 sarebbe 00000111, pag. 196 del manuale sarebbe devEEPROM, devFlash e devBBR, non devSpiFlash.</span>
+        <span class="n">deviceMask</span> <span class="o">=</span> <span class="mi">7</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">deviceMask</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">))</span>
+
+        <span class="c1"># calcolo il checksum</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">calcola_checksum</span><span class="p">())</span>
+
+        <span class="c1"># invio la richiesta e raccolgo la risposta</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">getMessaggio</span><span class="p">(</span><span class="kc">True</span><span class="p">),</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.01</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_check_ACK</span><span class="p">(</span><span class="s2">&quot;CFG&quot;</span><span class="p">,</span> <span class="s2">&quot;CFG&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+<div class="viewcode-block" id="Logger.ublox_check_ACK"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.ublox_check_ACK">[docs]</a>    <span class="k">def</span> <span class="nf">ublox_check_ACK</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">cls</span><span class="p">,</span> <span class="nb">id</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Controlla che arrivi un ACK dopo una poll per un dato messaggio.</span>
+<span class="sd">        :param cls: classe del messaggio</span>
+<span class="sd">        :param id: id del messaggio</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="n">msg</span> <span class="o">=</span> <span class="n">UBXMessage</span><span class="p">(</span><span class="s2">&quot;ACK&quot;</span><span class="p">,</span> <span class="s2">&quot;ACK&quot;</span><span class="p">)</span>
+        <span class="n">lunghezzaPayload</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">lunghezzaPayload</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">))</span>
+        <span class="n">bcls</span><span class="p">,</span> <span class="n">bid</span> <span class="o">=</span> <span class="n">ublox_UBX_codes</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="nb">id</span><span class="p">)</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">([</span><span class="n">bcls</span><span class="p">,</span> <span class="n">bid</span><span class="p">])</span>
+
+        <span class="c1"># calcolo il checksum</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">calcola_checksum</span><span class="p">())</span>
+
+        <span class="c1"># acquisisco il time di ora</span>
+        <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+        <span class="c1"># aspetto massimo mezzo secondo</span>
+        <span class="n">dtMax</span> <span class="o">=</span> <span class="mi">5</span>
+        <span class="n">reply_1</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">reply_2</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="p">(</span><span class="n">reply_1</span> <span class="o">!=</span> <span class="n">reply_2</span><span class="p">)</span> <span class="ow">or</span> <span class="n">reply_1</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># acquisisto l&#39;ora corrente</span>
+            <span class="n">current_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+            <span class="n">time_diff</span> <span class="o">=</span> <span class="n">current_time</span> <span class="o">-</span> <span class="n">start_time</span>
+            <span class="k">if</span> <span class="n">time_diff</span><span class="o">.</span><span class="n">seconds</span> <span class="o">&gt;</span> <span class="n">dtMax</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">out</span>
+
+            <span class="n">reply_1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_waiting</span><span class="p">()</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+            <span class="n">reply_2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_waiting</span><span class="p">()</span>
+            <span class="c1"># print(str(reply_1) + &quot; - &quot; + str(reply_2) + &quot; (&quot; + str(time_diff.seconds) + &quot;s)&quot;)</span>
+
+        <span class="n">reply</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">(</span><span class="n">splitBytes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">reply_1</span><span class="p">))))</span>
+        <span class="n">msgBin</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">getMessaggio</span><span class="p">()[</span><span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]))</span>
+
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">strfind</span><span class="p">(</span><span class="n">msgBin</span><span class="p">,</span> <span class="n">reply</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">reply</span><span class="p">[</span><span class="n">idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]:])</span> <span class="o">&gt;=</span> <span class="mi">10</span><span class="p">):</span>
+            <span class="n">compACK</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">getMessaggio</span><span class="p">()))</span>
+            <span class="n">reply</span> <span class="o">=</span> <span class="n">reply</span><span class="p">[</span><span class="n">idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]:(</span><span class="n">idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">compACK</span><span class="p">))]</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">reply</span> <span class="o">==</span> <span class="n">compACK</span><span class="p">):</span>
+                <span class="n">out</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+<div class="viewcode-block" id="Logger.ublox_CFG_MSG"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.ublox_CFG_MSG">[docs]</a>    <span class="k">def</span> <span class="nf">ublox_CFG_MSG</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">cls</span><span class="p">,</span> <span class="nb">id</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Invia un messaggio UBX-CFG-MSG indicando (mode = 1 o 0) al ricevitore di inviare/bloccare l&#39;invio di un messaggio con quella classe/id.</span>
+<span class="sd">        :param cls: classe del messaggio</span>
+<span class="sd">        :param id: identificativo del messaggio</span>
+<span class="sd">        :param mode: modalità (1 per voler ricevere il messaggio, 0 per non riceverlo)</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="n">UBXMessage</span><span class="p">(</span><span class="s2">&quot;CFG&quot;</span><span class="p">,</span> <span class="s2">&quot;MSG&quot;</span><span class="p">)</span>
+        <span class="c1"># aggiungo la lunghezza</span>
+        <span class="n">lunghezzaPayload</span> <span class="o">=</span> <span class="mi">3</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">lunghezzaPayload</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">))</span>
+        <span class="c1"># se rate = 1, lo voglio, altrimenti no</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">rate</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x01</span><span class="s2">&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rate</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span>
+
+        <span class="p">(</span><span class="n">bCls</span><span class="p">,</span> <span class="n">bId</span><span class="p">)</span> <span class="o">=</span> <span class="n">ublox_UBX_codes</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="nb">id</span><span class="p">)</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">([</span><span class="n">bCls</span><span class="p">,</span> <span class="n">bId</span><span class="p">])</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiByte</span><span class="p">(</span><span class="n">rate</span><span class="p">)</span>
+
+        <span class="c1"># calcolo il checksum</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">calcola_checksum</span><span class="p">())</span>
+
+        <span class="c1"># invio la richiesta e raccolgo la risposta</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">getMessaggio</span><span class="p">(</span><span class="kc">True</span><span class="p">),</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_check_ACK</span><span class="p">(</span><span class="s2">&quot;CFG&quot;</span><span class="p">,</span> <span class="s2">&quot;MSG&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Logger.ublox_CFG_RATE"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.ublox_CFG_RATE">[docs]</a>    <span class="k">def</span> <span class="nf">ublox_CFG_RATE</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">measRate</span><span class="p">,</span> <span class="n">navRate</span><span class="p">,</span> <span class="n">timeRef</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Invia un messaggio UBX-CFG-RATE, impostando measRate, navRate e timeRef.</span>
+<span class="sd">        :param measRate: velocità misurazioni (in ms)</span>
+<span class="sd">        :param navRate: velocità navigazione (in ms)</span>
+<span class="sd">        :param timeRef: riferimento temporale</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="n">UBXMessage</span><span class="p">(</span><span class="s2">&quot;CFG&quot;</span><span class="p">,</span> <span class="s2">&quot;RATE&quot;</span><span class="p">)</span>
+        <span class="c1"># aggiungo la lunghezza</span>
+        <span class="n">lunghezzaPayload</span> <span class="o">=</span> <span class="mi">6</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">lunghezzaPayload</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">))</span>
+
+        <span class="c1"># imposto measRate (in ms!)</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">measRate</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+        <span class="c1"># imposto navRate (in cicli!)</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">navRate</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+        <span class="c1"># imposto timeRef: è questo quello che è cambiato dalla versione 18:</span>
+        <span class="c1">#   0: UTC Time</span>
+        <span class="c1">#   1: GPS</span>
+        <span class="c1">#   2: GLONASS Time</span>
+        <span class="c1">#   3: BeiDou Time</span>
+        <span class="c1">#   4: Galileo Time</span>
+        <span class="c1">#   5: Navlc Time</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">timeRef</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+
+        <span class="c1"># calcolo il checksum</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">calcola_checksum</span><span class="p">())</span>
+
+        <span class="c1"># invio la richiesta e raccolgo la risposta</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">getMessaggio</span><span class="p">(</span><span class="kc">True</span><span class="p">),</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_check_ACK</span><span class="p">(</span><span class="s2">&quot;CFG&quot;</span><span class="p">,</span> <span class="s2">&quot;RATE&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Logger.ublox_CFG_GNSS"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.ublox_CFG_GNSS">[docs]</a>    <span class="k">def</span> <span class="nf">ublox_CFG_GNSS</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gnssParams</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Invia un messaggio UBX-CFG-GNSS attivando la ricezione di messaggi da quel determinato GNSS.</span>
+<span class="sd">        :param gnssParams: informazioni GNSS</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="n">UBXMessage</span><span class="p">(</span><span class="s2">&quot;CFG&quot;</span><span class="p">,</span> <span class="s2">&quot;GNSS&quot;</span><span class="p">)</span>
+        <span class="c1"># aggiungo la lunghezza</span>
+        <span class="n">lunghezzaPayload</span> <span class="o">=</span> <span class="mi">4</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">gnssParams</span><span class="p">[</span><span class="s1">&#39;constellations&#39;</span><span class="p">])</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">lunghezzaPayload</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+
+        <span class="c1"># ora compongo il payload</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># msgVer</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># numTrkChHw (read only)</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">gnssParams</span><span class="p">[</span><span class="s1">&#39;chToUse&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">))</span>  <span class="c1"># numTrkChUse, 20 = 32.</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">gnssParams</span><span class="p">[</span><span class="s1">&#39;constellations&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">))</span>  <span class="c1"># numConfigBlocks</span>
+
+        <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">gnssParams</span><span class="p">[</span><span class="s1">&#39;constellations&#39;</span><span class="p">]:</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="s1">&#39;gnssId&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">))</span>  <span class="c1"># gnssId</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="s1">&#39;minCh&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">))</span>  <span class="c1"># resTrkCh (chMin)</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="s1">&#39;maxCh&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">))</span>  <span class="c1"># maxTrkCh (chMax)</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># reserved1</span>
+            <span class="c1"># devo comporre la mask. Parto dalla destra, come per le configurazioni, quindi:</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="s1">&#39;enable&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">))</span>  <span class="c1"># enable</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># reserved</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="s1">&#39;signals&#39;</span><span class="p">])</span>  <span class="c1"># sigConfMask</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span>
+                <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x01</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># reserved (in teoria, in pratica vedi i valori in GNSSParams sotto la voce &quot;BitField 4...&quot;</span>
+
+        <span class="c1"># calcolo il checksum</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">calcola_checksum</span><span class="p">())</span>
+        <span class="c1"># invio la richiesta e raccolgo la risposta</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">getMessaggio</span><span class="p">(</span><span class="kc">True</span><span class="p">),</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.6</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ublox_check_ACK</span><span class="p">(</span><span class="s2">&quot;CFG&quot;</span><span class="p">,</span> <span class="s2">&quot;GNSS&quot;</span><span class="p">)</span>
+
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        TODO: If Galileo is enabled, UBX-CFG-GNSS must be followed by UBX-CFG-CFG to save the current configuration to BBR</span>
+<span class="sd">        and then by UBX-CFG-RST with resetMode set to Hardware reset.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="c1"># self.ublox_CFG_CFG(&#39;save&#39;)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+<div class="viewcode-block" id="Logger.ublox_poll_message"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.ublox_poll_message">[docs]</a>    <span class="k">def</span> <span class="nf">ublox_poll_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ClassLab</span><span class="p">,</span> <span class="n">MsgIDLab</span><span class="p">,</span> <span class="n">payload_length</span><span class="p">,</span> <span class="n">parameter</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Invia la richiesta di messaggio al ricevitore.</span>
+<span class="sd">        :param ClassLab: classe del messaggio richiesto</span>
+<span class="sd">        :param MsgIDLab: id del messaggio richiesto</span>
+<span class="sd">        :param payload_length: lunghezza del payload</span>
+<span class="sd">        :param parameter: eventuali parametri (0 per default)</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="n">UBXMessage</span><span class="p">(</span><span class="n">ClassLab</span><span class="p">,</span> <span class="n">MsgIDLab</span><span class="p">)</span>
+        <span class="c1"># aggiungo la lunghezza</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">payload_length</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="n">lunghezzaPayload</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">lunghezzaPayload_byte</span> <span class="o">=</span> <span class="n">lunghezzaPayload</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">)</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">lunghezzaPayload_byte</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lunghezzaPayload</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="n">lunghezzaPayload_byte</span> <span class="o">=</span> <span class="n">lunghezzaPayload</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">)</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">lunghezzaPayload_byte</span><span class="p">)</span>
+
+            <span class="c1"># aggiungo il payload</span>
+            <span class="c1"># 1 byte HEX</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">));</span>
+
+        <span class="c1"># calcolo il checksum</span>
+        <span class="n">cs</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">calcola_checksum</span><span class="p">()</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">aggiungiBytes</span><span class="p">(</span><span class="n">cs</span><span class="p">)</span>
+
+        <span class="c1"># invio la richiesta e raccolgo la risposta, senza liberare quello che c&#39;è nel buffer!</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">getMessaggio</span><span class="p">(</span><span class="kc">True</span><span class="p">),</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Logger.decode_ublox"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.decode_ublox">[docs]</a>    <span class="k">def</span> <span class="nf">decode_ublox</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Funzione che decodifica il messaggio proveniente dall&#39;ublox (bytes). Distingue NMEA o UBX e alla fine ritorna entrambi.</span>
+<span class="sd">        :param msg: messaggio in bytes</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">(</span><span class="n">splitBytes</span><span class="p">(</span><span class="n">msg</span><span class="p">)))</span>
+
+        <span class="n">messaggioUBX</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">([</span><span class="n">UBXMessage</span><span class="o">.</span><span class="n">SYNC_CHAR_1</span><span class="p">,</span> <span class="n">UBXMessage</span><span class="o">.</span><span class="n">SYNC_CHAR_2</span><span class="p">]))</span>  <span class="c1"># b5 62</span>
+        <span class="n">posUBX</span> <span class="o">=</span> <span class="n">strfind</span><span class="p">(</span><span class="n">messaggioUBX</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+
+        <span class="n">messaggioNMEA</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">([</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x24</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x47</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x4e</span><span class="s2">&quot;</span><span class="p">]))</span>  <span class="c1"># $ G N</span>
+        <span class="n">posNMEA</span> <span class="o">=</span> <span class="n">strfind</span><span class="p">(</span><span class="n">messaggioNMEA</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+
+        <span class="c1"># variabili che conterranno quello che andrò ad esportare</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">NMEA_sentences</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">NMEA_string</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+        <span class="c1"># il messaggio che ho è misto: occorre capire l&#39;indice da cui partire a decodificare</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">posUBX</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">posNMEA</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">posUBX</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">posNMEA</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">pos</span> <span class="o">=</span> <span class="n">posUBX</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">pos</span> <span class="o">=</span> <span class="n">posNMEA</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">posUBX</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">pos</span> <span class="o">=</span> <span class="n">posUBX</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">posNMEA</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">pos</span> <span class="o">=</span> <span class="n">posNMEA</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="c1"># inizio la fase di decodifica del messaggio</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># controllo che io abbia UBX o NMEA nei primi 2/3 frammenti</span>
+        <span class="k">while</span> <span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">16</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+            <span class="c1"># controllo se ho l&#39;header UBX</span>
+            <span class="k">if</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">16</span><span class="p">)]</span> <span class="o">==</span> <span class="n">messaggioUBX</span><span class="p">:</span>
+                <span class="c1"># aumento il contatore</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="c1"># salto i primi due bytes di intestazione del messaggio</span>
+                <span class="n">pos</span> <span class="o">+=</span> <span class="mi">16</span>
+                <span class="c1"># ora dovrei avere classe, id e lunghezza del payload</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">32</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+                    <span class="c1"># prendo la classe</span>
+                    <span class="n">classId</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">byteorder</span><span class="o">=</span><span class="s1">&#39;big&#39;</span><span class="p">)</span>
+                    <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+                    <span class="c1"># prendo l&#39;id</span>
+                    <span class="n">msgId</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">byteorder</span><span class="o">=</span><span class="s1">&#39;big&#39;</span><span class="p">)</span>
+                    <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+
+                    <span class="c1"># controllo che il messaggio non sia troncato</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">find</span><span class="p">(</span><span class="n">posUBX</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+                        <span class="n">f</span> <span class="o">=</span> <span class="n">find</span><span class="p">(</span><span class="n">posUBX</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">f</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="n">posNext</span> <span class="o">=</span> <span class="n">posUBX</span><span class="p">[</span><span class="n">f</span><span class="p">]</span>
+                    <span class="n">posRem</span> <span class="o">=</span> <span class="n">posNext</span> <span class="o">-</span> <span class="n">pos</span>
+
+                    <span class="c1"># estraggo la lunghezza del payload (2 byte)</span>
+                    <span class="n">LEN1</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span>
+                    <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+                    <span class="n">LEN2</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span>
+                    <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+
+                    <span class="n">LEN</span> <span class="o">=</span> <span class="n">LEN1</span> <span class="o">+</span> <span class="p">(</span><span class="n">LEN2</span> <span class="o">*</span> <span class="nb">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+
+                    <span class="k">if</span> <span class="n">LEN</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="c1"># subito dopo la lunghezza ho il payload lungo LEN, poi due byte di fine stream (checksum)</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="p">(</span><span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span><span class="p">)</span> <span class="o">+</span> <span class="mi">16</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+                            <span class="c1"># calcolo il checksum</span>
+                            <span class="n">CK_A</span> <span class="o">=</span> <span class="mi">0</span>
+                            <span class="n">CK_B</span> <span class="o">=</span> <span class="mi">0</span>
+
+                            <span class="n">slices</span> <span class="o">=</span> <span class="p">[]</span>
+
+                            <span class="n">j</span> <span class="o">=</span> <span class="n">pos</span> <span class="o">-</span> <span class="mi">32</span>
+                            <span class="k">while</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span><span class="p">):</span>
+                                <span class="n">t</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="n">j</span><span class="p">:(</span><span class="n">j</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)]</span>
+                                <span class="n">slices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">j</span><span class="p">:(</span><span class="n">j</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">))</span>
+                                <span class="n">j</span> <span class="o">+=</span> <span class="mi">8</span>
+
+                            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">slices</span><span class="p">)):</span>
+                                <span class="n">CK_A</span> <span class="o">=</span> <span class="n">CK_A</span> <span class="o">+</span> <span class="n">slices</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+                                <span class="n">CK_B</span> <span class="o">=</span> <span class="n">CK_B</span> <span class="o">+</span> <span class="n">CK_A</span>
+
+                            <span class="n">CK_A</span> <span class="o">=</span> <span class="n">CK_A</span> <span class="o">%</span> <span class="mi">256</span>
+                            <span class="n">CK_B</span> <span class="o">=</span> <span class="n">CK_B</span> <span class="o">%</span> <span class="mi">256</span>
+                            <span class="n">CK_A_rec</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span><span class="p">):(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span>
+                            <span class="n">CK_B_rec</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span> <span class="o">+</span> <span class="mi">8</span><span class="p">):(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span> <span class="o">+</span> <span class="mi">16</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span>
+
+                            <span class="c1"># controllo se il checksum corrisponde</span>
+                            <span class="k">if</span> <span class="n">CK_A</span> <span class="o">==</span> <span class="n">CK_A_rec</span> <span class="ow">and</span> <span class="n">CK_B</span> <span class="o">==</span> <span class="n">CK_B_rec</span><span class="p">:</span>
+                                <span class="n">s</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="p">(</span><span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span><span class="p">))]</span>
+                                <span class="n">nB</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="mi">8</span><span class="p">)</span>
+                                <span class="n">MSG</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="n">nB</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">)</span>
+                                <span class="n">MSG</span> <span class="o">=</span> <span class="n">splitBytes</span><span class="p">(</span><span class="n">MSG</span><span class="p">)</span>
+                                <span class="c1"># posso analizzare il messaggio nel dettaglio, esaminando il payload con l&#39;opportuna funzione in base a id, classe</span>
+                                <span class="k">if</span> <span class="n">classId</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x01</span><span class="s2">&quot;</span><span class="p">:</span>  <span class="c1"># NAV</span>
+                                    <span class="k">if</span> <span class="n">msgId</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x24</span><span class="s2">&quot;</span><span class="p">:</span>  <span class="c1"># NAV-TIMEBDS</span>
+                                        <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">decode_NAV_TIMEBDS</span><span class="p">(</span><span class="n">MSG</span><span class="p">))</span>
+                                    <span class="k">elif</span> <span class="n">msgId</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x25</span><span class="s2">&quot;</span><span class="p">:</span>  <span class="c1"># NAV-TIMEGAL</span>
+                                        <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">decode_NAV_TIMEGAL</span><span class="p">(</span><span class="n">MSG</span><span class="p">))</span>
+                                    <span class="k">elif</span> <span class="n">msgId</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x20</span><span class="s2">&quot;</span><span class="p">:</span>  <span class="c1"># NAV-TIMEGPS</span>
+                                        <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">decode_NAV_TIMEGPS</span><span class="p">(</span><span class="n">MSG</span><span class="p">))</span>
+                                    <span class="k">elif</span> <span class="n">msgId</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x23</span><span class="s2">&quot;</span><span class="p">:</span>  <span class="c1"># NAV-TIMEGLO</span>
+                                        <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">decode_NAV_TIMEGLO</span><span class="p">(</span><span class="n">MSG</span><span class="p">))</span>
+                                    <span class="k">elif</span> <span class="n">msgId</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x21</span><span class="s2">&quot;</span><span class="p">:</span>  <span class="c1"># NAV-TIMEUTC</span>
+                                        <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">decode_NAV_TIMEUTC</span><span class="p">(</span><span class="n">MSG</span><span class="p">))</span>
+                                <span class="k">elif</span> <span class="n">classId</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x02</span><span class="s2">&quot;</span><span class="p">:</span> <span class="c1"># RXM</span>
+                                    <span class="k">if</span> <span class="n">msgId</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x15</span><span class="s2">&quot;</span><span class="p">:</span> <span class="c1"># RXM-RAWX</span>
+                                        <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">decode_RXM_RAWX</span><span class="p">(</span><span class="n">MSG</span><span class="p">))</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Checksum error.&quot;</span><span class="p">)</span>
+                                <span class="c1"># salto il messaggio troncato</span>
+                                <span class="k">if</span> <span class="n">posRem</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="p">(</span><span class="n">posRem</span> <span class="o">%</span> <span class="mi">8</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="mi">8</span> <span class="o">*</span> <span class="p">(</span><span class="n">LEN</span> <span class="o">+</span> <span class="mi">4</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">posRem</span><span class="p">:</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Truncated UBX message, detected and skipped&quot;</span><span class="p">)</span>
+                                    <span class="n">pos</span> <span class="o">=</span> <span class="n">posNext</span>
+                                    <span class="k">continue</span>
+
+                            <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span>
+                            <span class="n">pos</span> <span class="o">+=</span> <span class="mi">16</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="k">break</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">break</span>
+            <span class="c1"># controllo se ho l&#39;header NMEA</span>
+            <span class="k">elif</span> <span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">24</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="ow">and</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">24</span><span class="p">)]</span> <span class="o">==</span> <span class="n">messaggioNMEA</span><span class="p">:</span>
+                <span class="c1"># cerco la fine del messaggio (CRLF)</span>
+                <span class="c1"># NMEA0183 solitamente è lungo 82, ma al fine di evitare lunghezze non valide sono usati un massimo di 100 caratteri.</span>
+                <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="o">-</span> <span class="n">pos</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">800</span><span class="p">:</span>
+                    <span class="n">posFineNMEA</span> <span class="o">=</span> <span class="n">strfind</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">(</span><span class="n">splitBytes</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x0d\x0a</span><span class="s2">&quot;</span><span class="p">))),</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">posFineNMEA</span> <span class="o">=</span> <span class="n">strfind</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">(</span><span class="n">splitBytes</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x0d\x0a</span><span class="s2">&quot;</span><span class="p">))),</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">800</span><span class="p">)])</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">posFineNMEA</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># salvo la stringa</span>
+                    <span class="k">while</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)]</span> <span class="o">!=</span> <span class="s2">&quot;00001101&quot;</span><span class="p">:</span>
+                        <span class="n">NMEA_string</span> <span class="o">+=</span> <span class="nb">chr</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">))</span>
+                        <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+
+                    <span class="c1"># salvo soltanto l&#39;\n</span>
+                    <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+                    <span class="n">NMEA_string</span> <span class="o">+=</span> <span class="nb">chr</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">))</span>
+                    <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+
+                    <span class="n">NMEA_sentences</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">NMEA_string</span><span class="p">)</span>
+                    <span class="n">NMEA_string</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># la sentence NMEA è iniziata, ma non è disponibile.</span>
+                    <span class="c1"># scorro l&#39;header e continuo</span>
+                    <span class="n">pos</span> <span class="o">+=</span> <span class="mi">24</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># controllo se ci sono altri pacchetti</span>
+                <span class="c1"># pos = pos_UBX(find(pos_UBX &gt; pos, 1));</span>
+                <span class="c1"># if (isempty(pos)), break, end;</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">find</span><span class="p">(</span><span class="n">posUBX</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">p</span> <span class="o">=</span> <span class="n">find</span><span class="p">(</span><span class="n">posUBX</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">posUBX</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">p</span><span class="p">:</span>
+                        <span class="n">pos</span> <span class="o">=</span> <span class="n">posUBX</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">break</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">NMEA_sentences</span><span class="p">)</span></div>
+
+    <span class="c1"># --------------- serial FUNCTION ---------------</span>
+    <span class="k">def</span> <span class="nf">open_connection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Logger.serial_close_connect"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.serial_close_connect">[docs]</a>    <span class="k">def</span> <span class="nf">serial_close_connect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Funzione che chiude e riapre la connessione.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">except</span> <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">SerialException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Serial error: &quot;</span> <span class="o">+</span> <span class="n">e</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">open</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="Logger.in_waiting"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.in_waiting">[docs]</a>    <span class="k">def</span> <span class="nf">in_waiting</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Funzione che restituisce il numero di bytes nel buffer della periferica.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">in_waiting</span></div>
+
+<div class="viewcode-block" id="Logger.read"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">howBytes</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Funzione che legge i bytes indicati come parametro.</span>
+<span class="sd">        :param howBytes: quanti bytes leggere dal buffer.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">howBytes</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Logger.send_message"><a class="viewcode-back" href="../../code.html#modules.Logger.Logger.send_message">[docs]</a>    <span class="k">def</span> <span class="nf">send_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">messaggio</span><span class="p">,</span> <span class="n">freeQueue</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">jumpException</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Funzione che invia un messaggio alla periferica liberando o meno la coda e ignorando o meno le possibili eccezioni.</span>
+<span class="sd">        :param messaggio: messaggio in bytes da inviare</span>
+<span class="sd">        :param freeQueue: booleano che indica se liberare o meno i bytes nel buffer di entrata</span>
+<span class="sd">        :param jumpException: booleano che indica se restituire o meno eccezione in caso di errore</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">freeQueue</span><span class="p">):</span>
+            <span class="n">bytes2read</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">in_waiting</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">bytes2read</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">bytes2read</span><span class="p">)</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.01</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">messaggio</span><span class="p">)</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.01</span><span class="p">)</span>
+        <span class="k">except</span> <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">SerialException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">jumpException</span><span class="p">:</span>
+                <span class="c1"># TODO: manca la stop async</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">serial</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">messaggio</span><span class="p">)</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.01</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Serial write error: &quot;</span> <span class="o">+</span> <span class="n">e</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">GPSDataLoggerParser</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2022, Luca Padalino.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 5.1.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

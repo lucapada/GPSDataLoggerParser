@@ -10,23 +10,37 @@ else:
 
 
 class ThreadWithReturn(Thread):
-
+    """
+    Classe che estende la classe Thread. Crea un Thread indicando una funzione target passata come argomento del costruttore.
+    """
     # chiamata al costruttore padre
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setDaemon(True)
 
-    # override del metodo run(), necessario perché run chiama solo la funzione target.
     def run(self):
+        """
+        override del metodo run(), necessario perché run chiama solo la funzione target.
+        :return:
+        """
         target_function = getattr(self, _thread_target)
         # controlla se esiste la funzione target, e nel caso la chiama passandogli gli argomenti del thread.
         if target_function:
             self._return = target_function(*getattr(self, _thread_args), **getattr(self, _thread_kwargs))
 
-    # chiamata al join padre
     def join(self, *args, **kwargs):
+        """
+        # Chiamata al join padre
+        :param args:
+        :param kwargs:
+        :return:
+        """
         super().join(*args, **kwargs)
         return self._return
 
     def stop(self):
+        """
+        Variazione dell'attributo running per l'interruzione forzata del thread.
+        :return:
+        """
         setattr(self, "running", False)
