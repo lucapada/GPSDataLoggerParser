@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+import math
 import os
 import platform
 import subprocess
-import sys
-import threading
 import time
 from datetime import datetime
 
@@ -13,7 +12,8 @@ from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog
 
 from modules.BackendHandler import Handler
-from modules.Utils import msg2bits, splitBytes, strfind
+from modules.UBXMessage import UBXMessage
+from modules.Utils import msg2bits, splitBytes, strfind, find, decode_RXM_RAWX
 
 # from WindowsNT
 if os.name == 'nt':
@@ -22,7 +22,6 @@ if os.name == 'nt':
 # Mac & Linux are POSIX compliant (UNIX like systems)
 elif os.name == 'posix':
     from serial.tools.list_ports_posix import comports
-    #TODO: sistema su linux
     rtklibPath = os.path.dirname(os.path.abspath(__file__) + "/RTKLIB-rtklib_2.4.3/app/consapp/convbin/")
 else:
     raise ImportError("OS Platform not properly detected")
@@ -242,6 +241,7 @@ class Ui_MainWindow():
         self.tabWidget.setCurrentIndex(1)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
         self.modelFiles = None
+        self.model = None
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
@@ -388,15 +388,14 @@ class Ui_MainWindow():
             self.modelFiles.appendRow(item)
 
             # leggo il file
-            data_rover = ""
-            f = open(n, "r")
-            lines = f.readlines()
-            for line in lines:
-                data_rover += line.replace("\n","")
-            (ubxData, nmeaData) = self.decode_ublox(data_rover)
+            dr = open(n, "rb")
+            data_rover = bytearray()
+            byte = dr.read(1)
+            while byte:
+                data_rover.append(byte[0])
+                byte = dr.read(1)
+            (ubxData, nmeaData) = decode_ublox_file(data_rover)
 
-            timeSyncFile = open(self.txtUBXPath.text() + "/" + os.path.basename(n) + "_times.txt", "wb")
-            timeSyncNMEAFile = open(self.txtUBXPath.text() + "/" + os.path.basename(n) + "_NMEA_times.txt", "wb")
             nmeaFile = open(self.txtUBXPath.text() + "/" + os.path.basename(n) + "_NMEA.txt", "wb")
 
             type = ""
@@ -405,13 +404,9 @@ class Ui_MainWindow():
                     type += " NMEA"
                     for n in nmeaData:
                         nmeaFile.write(bytes(n.encode()))
-                        timeSyncNMEAFile.write(
-                            bytes(datetime.datetime.now() + "\t" + n.encode().split(",")[1] + "\n"))
-                if ubxData is not None and len(ubxData) > 0:
-                    type += "UBX"
-                    if ubxData[0] == "RXM-RAWX":
-                        timeSyncFile.write(bytes(datetime.datetime.now() + "\t" + ubxData[1]['rcvTow'] + "\n"))
                 self.printLog("Decoded %s message(s)" % type)
+
+            nmeaFile.close()
         self.filesListView.setModel(self.modelFiles)
 
     def removeFiles(self):
@@ -440,11 +435,10 @@ class Ui_MainWindow():
         self.btnRecordUBX.setEnabled(False)
         self.cmbBaudRateUBX.setEnabled(False)
 
-        # TODO: effettuare qui la conversione
         self.txtLogs.clear()
 
         # serial devices
-        if self.model:
+        if self.model is not None:
             for d in range(self.model.rowCount()):
                 if self.model.item(d).checkState() == QtCore.Qt.Checked:
                     new_connection = self.model.item(d).text()
@@ -591,6 +585,153 @@ class Ui_MainWindow():
     # def thread_finished(self):
     #    pass
 
+def decode_ublox_file(msg):
+    msg = "".join(msg2bits(splitBytes(msg)))
+
+    messaggioUBX = "".join(msg2bits([UBXMessage.SYNC_CHAR_1, UBXMessage.SYNC_CHAR_2]))  # b5 62
+    posUBX = strfind(messaggioUBX, msg)
+
+    messaggioNMEA = "".join(msg2bits([b"\x24", b"\x47", b"\x4e"]))  # $ G N
+    posNMEA = strfind(messaggioNMEA, msg)
+
+    # variabili che conterranno quello che andrò ad esportare
+    data = []
+    NMEA_sentences = []
+    NMEA_string = ""
+
+    # il messaggio che ho è misto: occorre capire l'indice da cui partire a decodificare
+    if len(posUBX) > 0 and len(posNMEA) > 0:
+        if posUBX[0] < posNMEA[0]:
+            pos = posUBX[0]
+        else:
+            pos = posNMEA[0]
+    elif len(posUBX) > 0:
+        pos = posUBX[0]
+    elif len(posNMEA) > 0:
+        pos = posNMEA[0]
+    else:
+        return (None, None)
+
+    # inizio la fase di decodifica del messaggio
+    i = 0
+
+    # controllo che io abbia UBX o NMEA nei primi 2/3 frammenti
+    while (pos + 16) <= len(msg):
+        # controllo se ho l'header UBX
+        if msg[pos:(pos + 16)] == messaggioUBX:
+            # aumento il contatore
+            i += 1
+            # salto i primi due bytes di intestazione del messaggio
+            pos += 16
+            # ora dovrei avere classe, id e lunghezza del payload
+            if (pos + 32) <= len(msg):
+                # prendo la classe
+                classId = int(msg[pos:(pos + 8)], 2).to_bytes(1, byteorder='big')
+                pos += 8
+                # prendo l'id
+                msgId = int(msg[pos:(pos + 8)], 2).to_bytes(1, byteorder='big')
+                pos += 8
+
+                # controllo che il messaggio non sia troncato
+                if (len(find(posUBX, pos, 1)) > 0):
+                    f = find(posUBX, pos, 1)[0]
+                else:
+                    f = 0
+                posNext = posUBX[f]
+                posRem = posNext - pos
+
+                # estraggo la lunghezza del payload (2 byte)
+                LEN1 = int(msg[pos:(pos + 8)], 2)
+                pos += 8
+                LEN2 = int(msg[pos:(pos + 8)], 2)
+                pos += 8
+
+                LEN = LEN1 + (LEN2 * pow(2, 8))
+
+                if LEN != 0:
+                    # subito dopo la lunghezza ho il payload lungo LEN, poi due byte di fine stream (checksum)
+                    if (pos + (8 * LEN) + 16) <= len(msg):
+                        # calcolo il checksum
+                        CK_A = 0
+                        CK_B = 0
+
+                        slices = []
+
+                        j = pos - 32
+                        while j < (pos + 8 * LEN):
+                            t = msg[j:(j + 8)]
+                            slices.append(int(msg[j:(j + 8)], 2))
+                            j += 8
+
+                        for r in range(len(slices)):
+                            CK_A = CK_A + slices[r]
+                            CK_B = CK_B + CK_A
+
+                        CK_A = CK_A % 256
+                        CK_B = CK_B % 256
+                        CK_A_rec = int(msg[(pos + 8 * LEN):(pos + 8 * LEN + 8)], 2)
+                        CK_B_rec = int(msg[(pos + 8 * LEN + 8):(pos + 8 * LEN + 16)], 2)
+
+                        # controllo se il checksum corrisponde
+                        if CK_A == CK_A_rec and CK_B == CK_B_rec:
+                            s = msg[pos:(pos + (8 * LEN))]
+                            nB = math.ceil(len(s) / 8)
+                            MSG = int(s, 2).to_bytes(nB, 'little')
+                            MSG = splitBytes(MSG)
+                            # posso analizzare il messaggio nel dettaglio, esaminando il payload con l'opportuna funzione in base a id, classe
+                            if classId == b"\x02":  # RXM
+                                if msgId == b"\x15":  # RXM-RAWX
+                                    data.append(decode_RXM_RAWX(MSG))
+                        else:
+                            #printLog("Checksum error.")
+                            # salto il messaggio troncato
+                            if posRem > 0 and (posRem % 8) != 0 and 8 * (LEN + 4) > posRem:
+                                #self.printLog("Truncated UBX message, detected and skipped")
+                                pos = posNext
+                                continue
+
+                        pos += 8 * LEN
+                        pos += 16
+                    else:
+                        break
+            else:
+                break
+        # controllo se ho l'header NMEA
+        elif (pos + 24) <= len(msg) and msg[pos:(pos + 24)] == messaggioNMEA:
+            # cerco la fine del messaggio (CRLF)
+            # NMEA0183 solitamente è lungo 82, ma al fine di evitare lunghezze non valide sono usati un massimo di 100 caratteri.
+            if (len(msg) - pos) < 800:
+                posFineNMEA = strfind("".join(msg2bits(splitBytes(b"\x0d\x0a"))), msg[pos:])
+            else:
+                posFineNMEA = strfind("".join(msg2bits(splitBytes(b"\x0d\x0a"))), msg[pos:(pos + 800)])
+            if len(posFineNMEA) > 0:
+                # salvo la stringa
+                while msg[pos:(pos + 8)] != "00001101":
+                    NMEA_string += chr(int(msg[pos:(pos + 8)], 2))
+                    pos += 8
+
+                # salvo soltanto l'\n
+                pos += 8
+                NMEA_string += chr(int(msg[pos:(pos + 8)], 2))
+                pos += 8
+
+                NMEA_sentences.append(NMEA_string)
+                NMEA_string = ""
+            else:
+                # la sentence NMEA è iniziata, ma non è disponibile.
+                # scorro l'header e continuo
+                pos += 24
+        else:
+            # controllo se ci sono altri pacchetti
+            # pos = pos_UBX(find(pos_UBX > pos, 1));
+            # if (isempty(pos)), break, end;
+            if len(find(posUBX, pos, 1)) > 0:
+                p = find(posUBX, pos, 1)[0]
+                if len(posUBX) >= p:
+                    pos = posUBX[p]
+            else:
+                break
+    return (data, NMEA_sentences)
 
 class GUIUpdater(QtCore.QThread):
     mySignal = QtCore.pyqtSignal(str)
