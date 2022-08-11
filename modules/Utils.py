@@ -1,3 +1,5 @@
+import datetime
+
 from modules import UBXMessage
 
 
@@ -30,9 +32,18 @@ def msg2bits(msgBytes: list):
 
 # Funzioni Custom
 def ieee754double(bits):
-    s = int(bits[0])
+    # rT_s = rcvTow_Bin[0:1]
+    # rT_e = rcvTow_Bin[1:12]
+    # rT_m = rcvTow_Bin[12:]
+    # rT_f = 0
+    # for j in range(len(rT_m)):
+    #     rT_f += int(rT_m[j], 2) * pow(2, -(j + 1))
+    #
+    # rcvTow = pow(-1, int(rT_s, 2)) * (1 + rT_f) * pow(2, int(rT_e, 2) - 1023)
+
+    s = int(bits[0:1])
     e = int(bits[1:12], 2)
-    m = bits[12:64]
+    m = bits[12:]
     mant = 1
     for b in range(len(m)):
         mant += int(m[b]) * pow(2, -(b + 1))
@@ -197,5 +208,27 @@ def decode_NAV_TIMEUTC(msg):
             "validTOW": "".join(msg2bits(splitBytes(msg[19])))[7]
         },
         "tAcc": int.from_bytes(b"".join([msg[12], msg[13], msg[14], msg[15]]), 'little', signed=False)
+    })
+    return data
+
+
+def decode_RXM_RAWX(msg):
+    # msg = splitBytes(msg)
+    data = []
+    data.append("RXM-RAWX")
+
+    rcvTow_Bin = "".join(msg2bits([msg[0],msg[1],msg[2],msg[3],msg[4],msg[5],msg[6],msg[7]]))
+    rcvTow = ieee754double(rcvTow_Bin)
+
+    data.append({
+        "localPCTime": datetime.datetime.now(),
+        "rcvTow": rcvTow,
+        "week": int.from_bytes(b"".join([msg[8], msg[9]]), 'little', signed=False),
+        "leapS": int.from_bytes(b"".join([msg[10]]), "little", signed=False),
+        "numMeas": int.from_bytes(b"".join([msg[11]]), "little", signed=False),
+        "recStat": {
+            "clkReset": "".join(msg2bits(splitBytes(msg[12])))[6],
+            "leapSec": "".join(msg2bits(splitBytes(msg[12])))[7],
+        }
     })
     return data

@@ -9,11 +9,11 @@ from .GNSS import GNSS
 from .UBXMessage import UBXMessage
 from .UBXCodes import ublox_UBX_codes
 from .Utils import strfind, msg2bits, splitBytes, find, decode_NAV_TIMEBDS, decode_NAV_TIMEGAL, decode_NAV_TIMEGPS, \
-    decode_NAV_TIMEGLO, decode_NAV_TIMEUTC
+    decode_NAV_TIMEGLO, decode_NAV_TIMEUTC, decode_RXM_RAWX
 
 
 class Logger():
-    def __init__(self, mainWindow, active_serial: SerialParser, filePath: str, gnss: dict):
+    def __init__(self, mainWindow, active_serial: SerialParser, filePath: str, gnss: dict, weekChanges: bool):
         self.serial = active_serial
         self.is_active = True
         gnssObj = GNSS
@@ -25,9 +25,11 @@ class Logger():
         self.gnss = gnssObj
         self.filePath = filePath
         self.mainWindow = mainWindow
+        self.weekChanges = weekChanges
 
         self.ubxFile = open(self.filePath + "/" + self.serial.port + "_rover.ubx","wb")
         self.timeSyncFile = open(self.filePath + "/" + self.serial.port + "_times.txt", "wb")
+        self.timeSyncNMEAFile = open(self.filePath + "/" + self.serial.port + "_NMEA_times.txt", "wb")
         self.nmeaFile = open(self.filePath + "/" + self.serial.port + "_NMEA.txt", "wb")
 
     # Logger Activation
@@ -85,17 +87,17 @@ class Logger():
                             self.printLog("%.2f sec (%d bytes)" % (currentTime.seconds, rover_1))
 
                             # TODO: dopo 60 secondi raccolgo i tempi
-                            if currentTime.seconds == 60:
-                                # mando le poll per il timesync dopo 60 secondi di osservazione
-                                self.ublox_poll_message("NAV", "TIMEUTC", 0, 0)
-                                if self.gnss['constellations'][0]['enable'] == 1:
-                                    self.ublox_poll_message("NAV", "TIMEGPS", 0, 0)
-                                if self.gnss['constellations'][2]['enable'] == 1:
-                                    self.ublox_poll_message("NAV", "TIMEGAL", 0, 0)
-                                if self.gnss['constellations'][3]['enable'] == 1:
-                                    self.ublox_poll_message("NAV", "TIMEBDS", 0, 0)
-                                if self.gnss['constellations'][6]['enable'] == 1:
-                                    self.ublox_poll_message("NAV", "TIMEGLO", 0, 0)
+                            # if currentTime.seconds == 60:
+                            #     # mando le poll per il timesync dopo 60 secondi di osservazione
+                            #     self.ublox_poll_message("NAV", "TIMEUTC", 0, 0)
+                            #     if self.gnss['constellations'][0]['enable'] == 1:
+                            #         self.ublox_poll_message("NAV", "TIMEGPS", 0, 0)
+                            #     if self.gnss['constellations'][2]['enable'] == 1:
+                            #         self.ublox_poll_message("NAV", "TIMEGAL", 0, 0)
+                            #     if self.gnss['constellations'][3]['enable'] == 1:
+                            #         self.ublox_poll_message("NAV", "TIMEBDS", 0, 0)
+                            #     if self.gnss['constellations'][6]['enable'] == 1:
+                            #         self.ublox_poll_message("NAV", "TIMEGLO", 0, 0)
 
                             # leggo il datarover
                             (ubxData, nmeaData) = self.decode_ublox(data_rover)
@@ -106,9 +108,17 @@ class Logger():
                                     type += " NMEA"
                                     for n in nmeaData:
                                         self.nmeaFile.write(bytes(n.encode()))
+                                        riga = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\t" + n.split(",")[1] + "\n"
+                                        self.timeSyncNMEAFile.write(bytes(riga.encode()))
                                 if ubxData is not None and len(ubxData) > 0:
                                     type += "UBX"
-                                    self.timeSyncFile.write(bytes(json.dumps(ubxData).encode()))
+                                    for u in ubxData:
+                                        if u[0] == "RXM-RAWX":
+                                            weekInfo = ""
+                                            if self.weekChanges is True:
+                                                weekInfo = "\t" + str(u[1]['week'])
+                                            riga = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\t" + str(u[1]['rcvTow']) + weekInfo + "\n"
+                                            self.timeSyncFile.write(bytes(riga.encode()))
                                 self.printLog("Decoded %s message(s)" % type)
                             currentTime = datetime.datetime.now() - tic
 
@@ -131,8 +141,9 @@ class Logger():
                 self.printLog("Closed logging files. Ready for RINEX conversion.")
             else:
                 self.printLog("Impossible to start logging: device is not enabled.")
-        except:
+        except Exception as errore:
             self.printLog("LOGGER ERROR")
+            self.printLog(errore)
 
     def printLog(self, msg):
         print(msg, flush=True)
@@ -596,12 +607,12 @@ class Logger():
 
                             # controllo se il checksum corrisponde
                             if CK_A == CK_A_rec and CK_B == CK_B_rec:
+                                s = msg[pos:(pos + (8 * LEN))]
+                                nB = math.ceil(len(s) / 8)
+                                MSG = int(s, 2).to_bytes(nB, 'little')
+                                MSG = splitBytes(MSG)
                                 # posso analizzare il messaggio nel dettaglio, esaminando il payload con l'opportuna funzione in base a id, classe
                                 if classId == b"\x01":  # NAV
-                                    s = msg[pos:(pos + (8 * LEN))]
-                                    nB = math.ceil(len(s) / 8)
-                                    MSG = int(s, 2).to_bytes(nB, 'little')
-                                    MSG = splitBytes(MSG)
                                     if msgId == b"\x24":  # NAV-TIMEBDS
                                         data.append(decode_NAV_TIMEBDS(MSG))
                                     elif msgId == b"\x25":  # NAV-TIMEGAL
@@ -612,6 +623,9 @@ class Logger():
                                         data.append(decode_NAV_TIMEGLO(MSG))
                                     elif msgId == b"\x21":  # NAV-TIMEUTC
                                         data.append(decode_NAV_TIMEUTC(MSG))
+                                elif classId == b"\x02": # RXM
+                                    if msgId == b"\x15": # RXM-RAWX
+                                        data.append(decode_RXM_RAWX(MSG))
                             else:
                                 self.printLog("Checksum error.")
                                 # salto il messaggio troncato

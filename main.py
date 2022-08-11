@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime
 
 import serial
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
@@ -17,7 +18,7 @@ from modules.Utils import msg2bits, splitBytes, strfind
 # from WindowsNT
 if os.name == 'nt':
     from serial.tools.list_ports_windows import comports
-    rtklibPath = "C:/Users/lucap/Desktop/GPSDataLoggerParser/RTKLIB_bin-master/bin/convbin.exe"
+    rtklibPath = os.path.dirname(os.path.abspath(__file__)) + "/RTKLIB_bin-master/bin/convbin.exe"
 # Mac & Linux are POSIX compliant (UNIX like systems)
 elif os.name == 'posix':
     from serial.tools.list_ports_posix import comports
@@ -240,6 +241,7 @@ class Ui_MainWindow():
         self.retranslateUi(MainWindow)
         self.tabWidget.setCurrentIndex(1)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
+        self.modelFiles = None
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
@@ -281,8 +283,6 @@ class Ui_MainWindow():
     def discoverDevices(self):
         self.cmbBaudRateUBX.setEnabled(False)
         ports = self.getPorts()
-        # ports.append("ciao")
-        # ports.append("come va")
         self.model = QStandardItemModel()
         for p in ports:
             item = QStandardItem(p)
@@ -322,10 +322,17 @@ class Ui_MainWindow():
             self.btnRecordUBX.setEnabled(False)
             self.cmbBaudRateUBX.setEnabled(False)
 
+            weekChanges = False
+            qm = QtWidgets.QMessageBox
+            r = qm.question(self.MainWindow, "Week Changes", "May the week change during relief (in case of night surveys)?",
+                            qm.Yes | qm.No)
+            if r == qm.Yes:
+                weekChanges = True
+
             for d in range(self.model.rowCount()):
                 if self.model.item(d).checkState() == QtCore.Qt.Checked:
                     new_connection = self.model.item(d).text()
-                    new_handler = Handler(self, new_connection, self.cmbBaudRateUBX.currentText(), new_GNSS, self.txtUBXPath.text())
+                    new_handler = Handler(self, new_connection, self.cmbBaudRateUBX.currentText(), new_GNSS, self.txtUBXPath.text(), weekChanges)
                     if new_handler.isActive():
                         self.CONNECTED_PORTS.append(new_connection)
                         self.HANDLERS[new_connection] = new_handler
@@ -374,13 +381,38 @@ class Ui_MainWindow():
         for n in names:
             self.rinexGroupBox.setEnabled(True)
             item = QStandardItem(n)
-            item.setCheckable(True)
-            checked = False  # di default non sono selezionati
+            item.setCheckable(False)
+            checked = True  # di default non sono selezionati
             check = QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked
             item.setCheckState(check)
             self.modelFiles.appendRow(item)
-        self.filesListView.setModel(self.modelFiles)
 
+            # leggo il file
+            data_rover = ""
+            f = open(n, "r")
+            lines = f.readlines()
+            for line in lines:
+                data_rover += line.replace("\n","")
+            (ubxData, nmeaData) = self.decode_ublox(data_rover)
+
+            timeSyncFile = open(self.txtUBXPath.text() + "/" + os.path.basename(n) + "_times.txt", "wb")
+            timeSyncNMEAFile = open(self.txtUBXPath.text() + "/" + os.path.basename(n) + "_NMEA_times.txt", "wb")
+            nmeaFile = open(self.txtUBXPath.text() + "/" + os.path.basename(n) + "_NMEA.txt", "wb")
+
+            type = ""
+            if (nmeaData is not None or ubxData is not None) and (len(nmeaData) > 0 or len(ubxData) > 0):
+                if nmeaData is not None and len(nmeaData) > 0:
+                    type += " NMEA"
+                    for n in nmeaData:
+                        nmeaFile.write(bytes(n.encode()))
+                        timeSyncNMEAFile.write(
+                            bytes(datetime.datetime.now() + "\t" + n.encode().split(",")[1] + "\n"))
+                if ubxData is not None and len(ubxData) > 0:
+                    type += "UBX"
+                    if ubxData[0] == "RXM-RAWX":
+                        timeSyncFile.write(bytes(datetime.datetime.now() + "\t" + ubxData[1]['rcvTow'] + "\n"))
+                self.printLog("Decoded %s message(s)" % type)
+        self.filesListView.setModel(self.modelFiles)
 
     def removeFiles(self):
         selected = 0
@@ -436,7 +468,7 @@ class Ui_MainWindow():
                     print("[RINEX " + new_connection + "] " + "************* Done! *************")
 
         # ubx files
-        if self.modelFiles:
+        if self.modelFiles is not None:
             for f in range(self.modelFiles.rowCount()):
                 if self.modelFiles.item(f).checkState() == QtCore.Qt.Checked:
                     ubxFile = self.modelFiles.item(f).text()
