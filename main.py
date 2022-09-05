@@ -1,4 +1,5 @@
 from __future__ import annotations
+from distutils.version import Version
 
 import math
 import os
@@ -17,11 +18,13 @@ from modules.Utils import msg2bits, splitBytes, strfind, find, decode_RXM_RAWX
 # from WindowsNT
 if os.name == 'nt':
     from serial.tools.list_ports_windows import comports
-    rtklibPath = os.path.dirname(os.path.abspath(__file__)) + "/RTKLIB_bin-master/bin/convbin.exe"
+    rtklibPath = os.path.dirname(os.path.abspath(__file__)) + "/RTKLIB_bin-master/bin"
+    rtklibConvbin = "convbin.exe"
 # Mac & Linux are POSIX compliant (UNIX like systems)
 elif os.name == 'posix':
     from serial.tools.list_ports_posix import comports
-    rtklibPath = os.path.dirname(os.path.abspath(__file__) + "/RTKLIB-rtklib_2.4.3/app/consapp/convbin/")
+    rtklibPath = os.path.dirname(os.path.abspath(__file__) + "/RTKLIB-rtklib_2.4.3/app/consapp/convbin")
+    rtklibConvbin = "convbin"
 else:
     raise ImportError("OS Platform not properly detected")
 
@@ -424,6 +427,7 @@ class Ui_MainWindow():
             self.modelFiles.appendRow(item)
 
             # leggo il file
+            self.printLog("Reading file \"%s\". " % (n))
             dr = open(n, "rb")
             data_rover = bytearray()
             byte = dr.read(1)
@@ -444,6 +448,7 @@ class Ui_MainWindow():
 
             nmeaFile.close()
         self.filesListView.setModel(self.modelFiles)
+        self.printLog("Files correctly loaded. Ready for RINEX conversion.")
 
     def removeFiles(self):
         """
@@ -488,20 +493,23 @@ class Ui_MainWindow():
                     new_connection = self.model.item(d).text()
 
                     infile = self.txtUBXPath.text() + "/" + new_connection + "_rover.ubx"
-                    outfile_obs = self.txtUBXPath.text() + "/" + new_connection + "_rinex.obs"
-                    outfile_nav = self.txtUBXPath.text() + "/" + new_connection + "_rinex.nav"
+                    infile = infile.replace("/","\\\\")
+                    outfile_obs = new_connection + "_rinex.obs"
+                    outfile_nav = new_connection + "_rinex.nav"
                     convbin_path = rtklibPath
                     version = "3.01"
                     if self.rinexVersion305_radio.isChecked():
                         version = "3.05"
 
                     if self.chkSplitRinexNav.checkState() == QtCore.Qt.Checked:
-                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (convbin_path, infile, outfile_obs, outfile_nav, version)
+                        #run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s -d %s" % (rtklibConvbin, infile, version, self.txtUBXPath.text())
+                        run_convbin_obs = "%s %s -v %s" % (rtklibConvbin, infile, version)
                     else:
-                        run_convbin_obs = "%s %s -o %s -n %s -od -os -oi -ot -ol -v %s" % (convbin_path, infile, outfile_obs, outfile_nav, version)
-
+                        run_convbin_obs = "%s %s -v %s" % (rtklibConvbin, infile, version)
+                    
                     self.printLog("[RINEX " + new_connection + "] " + run_convbin_obs)
                     print("[RINEX " + new_connection + "] " + "************* Conversion ubx --> RINEX *************")
+                    os.chdir(convbin_path)
                     os.system(run_convbin_obs)
                     print("[RINEX " + new_connection + "] " + "************* Done! *************")
 
@@ -513,22 +521,24 @@ class Ui_MainWindow():
 
                     infile = ubxFile
                     pathname, extension = os.path.splitext(infile)
-                    outfile_obs = self.txtUBXPath.text() + "/" + pathname.split('/')[-1] + "_rinex.obs"
-                    outfile_nav = self.txtUBXPath.text() + "/" + pathname.split('/')[-1] + "_rinex.nav"
+                    infile = infile.replace("/","\\\\")
+                    outfile_obs = pathname.split('/')[-1] + "_rinex.obs"
+                    outfile_nav = pathname.split('/')[-1] + "_rinex.nav"
                     convbin_path = rtklibPath
                     version = "3.01"
                     if self.rinexVersion305_radio.isChecked():
                         version = "3.05"
 
                     if self.chkSplitRinexNav.checkState() == QtCore.Qt.Checked:
-                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (
-                        convbin_path, infile, outfile_obs, outfile_nav, version)
+                        #run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s -d %s" % (rtklibConvbin, infile, version, self.txtUBXPath.text())
+                        run_convbin_obs = "%s %s -v %s" % (rtklibConvbin, infile, version)
                     else:
-                        run_convbin_obs = "%s %s -o %s -n %s -od -os -oi -ot -ol -v %s" % (
-                        convbin_path, infile, outfile_obs, outfile_nav, version)
-
+                        run_convbin_obs = "%s %s -v %s" % (rtklibConvbin, infile, version)
+                    
                     self.printLog("[RINEX " + pathname.split('/')[-1] + "] " + run_convbin_obs)
                     print("[RINEX " + pathname.split('/')[-1] + "] " + "************* Conversion ubx --> RINEX *************")
+                    os.chdir(convbin_path)
+                    print(run_convbin_obs)
                     os.system(run_convbin_obs)
                     print("[RINEX " + pathname.split('/')[-1] + "] " + "************* Done! *************")
 
@@ -638,11 +648,12 @@ class Ui_MainWindow():
         :param msg: messaggio da stampare
         :return:
         """
-        self.test = GUIUpdater(msg)
-        self.test.start()
-        self.test.mySignal.connect(self.txtLogs.append)
+        test = GUIUpdater(msg)
+        test.start()
+        test.mySignal.connect(self.txtLogs.append)
         # self.test.finished.connect(thread_finished)
-        self.test.wait()
+        test.stop()
+        del test
 
 
 def decode_ublox_file(msg):
@@ -806,12 +817,17 @@ class GUIUpdater(QtCore.QThread):
 
     def __init__(self, msg):
         super().__init__()
-        self.setPriority(QtCore.QThread.HighPriority)
         self.msg = msg
 
     def run(self):
+        # self.setPriority(QtCore.QThread.HighPriority)
+        #while True:
         self.mySignal.emit(self.msg)
-        pass
+
+    def stop(self):
+        self.is_running = False
+        # print("Stop Thread")
+        self.wait()
 
 if __name__ == "__main__":
     app = QApplication([])

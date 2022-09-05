@@ -10,7 +10,9 @@ L'obiettivo del progetto è scrivere uno strumento che registra in tempo reale i
 La richiesta è stata soddisfatta con la realizzazione di un applicativo in Python, cross-platform, versatile e scalabile. L'applicativo soddisfa tutti i requisiti richiesti, analizzati e commentati nella presentazione e nella relazione.
 
 ### Installazione ed Esecuzione del Software
-Il software necessita l'installazione di Python per poter esseere eseguito. Una volta installato è possibile lanciare il software entrando nella directory del progetto e digitando 
+Il software necessita l'installazione di Python per poter esseere eseguito. 
+Successivamente è necessario installare i pacchetti relativi alla libreria utilizzata per la GUI digitando `pip install pyqt5`.
+Ora è possibile lanciare il software entrando nella directory del progetto e digitando 
 `python main.py` nel Terminale/Windows PowerShell.
 
 ### Supporto

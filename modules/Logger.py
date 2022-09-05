@@ -141,6 +141,7 @@ class Logger():
                                             self.timeSyncFile.write(bytes(riga.encode()))
                                 self.printLog("Decoded %s message(s)" % type)
                             currentTime = datetime.datetime.now() - tic
+                            #del data_rover
 
                     # X-1) ripristino configurazione originale
                     if replySave:
@@ -157,6 +158,7 @@ class Logger():
                 # X) chiudo gli stream
                 self.ubxFile.close()
                 self.timeSyncFile.close()
+                self.timeSyncNMEAFile.close()
                 self.nmeaFile.close()
                 self.printLog("Closed logging files. Ready for RINEX conversion.")
             else:
@@ -173,6 +175,7 @@ class Logger():
         """
         # print(msg, flush=True)
         self.mainWindow.printLog("[LOGGER \"" + self.serial.port + "\"]: " + msg)
+        #print("[LOGGER \"" + self.serial.port + "\"]: " + msg, flush=True)
 
     # ---------- UBX FUNCTIONS ----------
     def configure_ublox(self, rate=1):
