@@ -37,12 +37,13 @@ class Handler(object):
         """
         self.thread.start()
 
-    def stop(self):
+    def stop(self, nameTS):
         """
         Interrompe la corsa del thread agendo su un parametro della classe.
+        :param nameTS: data e ora dell'acquisizione da aggiungere al nome del files quando l'acquisizione termina.
         :return:
         """
-        self.thread.stop()
+        self.thread.stop(nameTS)
 
     def join(self):
         """

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import datetime
 from distutils.version import Version
 
 import math
@@ -82,6 +83,8 @@ class Ui_MainWindow():
         self.btnRunRINEX.clicked.connect(self.startRinex)
         self.btnAddFile.clicked.connect(self.loadFiles)
         self.btnRemoveSelectedFile.clicked.connect(self.removeFiles)
+
+        self.recordTS = ""
 
     def setupUi(self):
         """
@@ -219,13 +222,13 @@ class Ui_MainWindow():
         self.gridLayout_7.setObjectName("gridLayout_7")
         self.gridLayout_6 = QtWidgets.QGridLayout()
         self.gridLayout_6.setObjectName("gridLayout_6")
-        self.rinexVersion301_radio = QtWidgets.QRadioButton(self.groupBox_4)
-        self.rinexVersion301_radio.setChecked(True)
-        self.rinexVersion301_radio.setObjectName("rinexVersion301_radio")
-        self.gridLayout_6.addWidget(self.rinexVersion301_radio, 0, 0, 1, 1)
-        self.rinexVersion305_radio = QtWidgets.QRadioButton(self.groupBox_4)
-        self.rinexVersion305_radio.setObjectName("rinexVersion305_radio")
-        self.gridLayout_6.addWidget(self.rinexVersion305_radio, 0, 1, 1, 1)
+        self.rinexVersion212_radio = QtWidgets.QRadioButton(self.groupBox_4)
+        self.rinexVersion212_radio.setChecked(True)
+        self.rinexVersion212_radio.setObjectName("rinexVersion212_radio")
+        self.gridLayout_6.addWidget(self.rinexVersion212_radio, 0, 0, 1, 1)
+        self.rinexVersion302_radio = QtWidgets.QRadioButton(self.groupBox_4)
+        self.rinexVersion302_radio.setObjectName("rinexVersion302_radio")
+        self.gridLayout_6.addWidget(self.rinexVersion302_radio, 0, 1, 1, 1)
         self.gridLayout_7.addLayout(self.gridLayout_6, 0, 0, 1, 1)
         self.gridLayout_8.addWidget(self.groupBox_4, 0, 0, 1, 1)
         self.btnRunRINEX = QtWidgets.QPushButton(self.rinexGroupBox)
@@ -283,8 +286,8 @@ class Ui_MainWindow():
         self.groupBox_3.setTitle(_translate("MainWindow", "Constellations"))
         self.rinexGroupBox.setTitle(_translate("MainWindow", "RINEX Conversion"))
         self.groupBox_4.setTitle(_translate("MainWindow", "RINEX Version"))
-        self.rinexVersion301_radio.setText(_translate("MainWindow", "3.01"))
-        self.rinexVersion305_radio.setText(_translate("MainWindow", "3.05"))
+        self.rinexVersion212_radio.setText(_translate("MainWindow", "2.12"))
+        self.rinexVersion302_radio.setText(_translate("MainWindow", "3.02"))
         self.btnRunRINEX.setText(_translate("MainWindow", "Run Conversion"))
         self.chkSplitRinexNav.setText(_translate("MainWindow", "Split .nav in different files per constellation"))
 
@@ -326,6 +329,9 @@ class Ui_MainWindow():
         Metodo che si occupa di avviare il processo di registrazione degli stream realtime e multithreading. Viene invocato su pressione del pulsante "Record".
         :return:
         """
+        # salvo il timestamp attuale, così da nominare i files ed evitare duplicati
+        self.recordTS = datetime.now().strftime("%Y%m%d_%H%M%S")
+
         new_GNSS = {
             "GPS": 0,
             "SBAS": 0,
@@ -383,7 +389,7 @@ class Ui_MainWindow():
 
         if len(handler_keys) > 0:
             for key in handler_keys:
-                self.HANDLERS[key].stop()
+                self.HANDLERS[key].stop(self.recordTS)
                 #if not self.HANDLERS[key].logger.is_active:
                 self.HANDLERS.pop(key, "")
                 inactive.append(key)
@@ -475,8 +481,8 @@ class Ui_MainWindow():
         """
         self.btnRunRINEX.setEnabled(False)
         self.chkSplitRinexNav.setEnabled(False)
-        self.rinexVersion301_radio.setEnabled(False)
-        self.rinexVersion305_radio.setEnabled(False)
+        self.rinexVersion212_radio.setEnabled(False)
+        self.rinexVersion302_radio.setEnabled(False)
         self.btnDiscoverUBXDevices.setEnabled(False)
         self.constellationsListView.setEnabled(False)
         self.ubxDevicesListView.setEnabled(False)
@@ -491,25 +497,25 @@ class Ui_MainWindow():
             for d in range(self.model.rowCount()):
                 if self.model.item(d).checkState() == QtCore.Qt.Checked:
                     new_connection = self.model.item(d).text()
-
-                    infile = self.txtUBXPath.text() + "/" + new_connection + "_rover.ubx"
+                    infile = self.txtUBXPath.text() + "/" + new_connection + "_" + self.recordTS + "_rover.ubx"
                     infile = infile.replace("/","\\\\")
-                    outfile_obs = new_connection + "_rinex.obs"
-                    outfile_nav = new_connection + "_rinex.nav"
+                    outfile_obs = new_connection + "_" + self.recordTS + "_rinex.obs"
+                    outfile_nav = new_connection + "_" + self.recordTS + "_rinex.nav"
                     convbin_path = rtklibPath
-                    version = "3.01"
-                    if self.rinexVersion305_radio.isChecked():
-                        version = "3.05"
+                    version = "2.12"
+                    if self.rinexVersion302_radio.isChecked():
+                        version = "3.02"
 
                     if self.chkSplitRinexNav.checkState() == QtCore.Qt.Checked:
-                        #run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s -d %s" % (rtklibConvbin, infile, version, self.txtUBXPath.text())
-                        run_convbin_obs = "%s %s -v %s" % (rtklibConvbin, infile, version)
+                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (rtklibConvbin, infile, version)
                     else:
-                        run_convbin_obs = "%s %s -v %s" % (rtklibConvbin, infile, version)
+                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -o %s -n %s -v %s" % (rtklibConvbin, infile, outfile_obs, outfile_nav, version)
+                        
                     
                     self.printLog("[RINEX " + new_connection + "] " + run_convbin_obs)
                     print("[RINEX " + new_connection + "] " + "************* Conversion ubx --> RINEX *************")
                     os.chdir(convbin_path)
+                    print(run_convbin_obs)
                     os.system(run_convbin_obs)
                     print("[RINEX " + new_connection + "] " + "************* Done! *************")
 
@@ -525,15 +531,14 @@ class Ui_MainWindow():
                     outfile_obs = pathname.split('/')[-1] + "_rinex.obs"
                     outfile_nav = pathname.split('/')[-1] + "_rinex.nav"
                     convbin_path = rtklibPath
-                    version = "3.01"
-                    if self.rinexVersion305_radio.isChecked():
-                        version = "3.05"
+                    version = "2.12"
+                    if self.rinexVersion302_radio.isChecked():
+                        version = "3.02"
 
                     if self.chkSplitRinexNav.checkState() == QtCore.Qt.Checked:
-                        #run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s -d %s" % (rtklibConvbin, infile, version, self.txtUBXPath.text())
-                        run_convbin_obs = "%s %s -v %s" % (rtklibConvbin, infile, version)
+                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (rtklibConvbin, infile, version)
                     else:
-                        run_convbin_obs = "%s %s -v %s" % (rtklibConvbin, infile, version)
+                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (rtklibConvbin, infile, version)
                     
                     self.printLog("[RINEX " + pathname.split('/')[-1] + "] " + run_convbin_obs)
                     print("[RINEX " + pathname.split('/')[-1] + "] " + "************* Conversion ubx --> RINEX *************")
@@ -545,8 +550,9 @@ class Ui_MainWindow():
 
         self.btnRunRINEX.setEnabled(True)
         self.chkSplitRinexNav.setEnabled(True)
-        self.rinexVersion301_radio.setEnabled(True)
-        self.rinexVersion305_radio.setEnabled(True)
+        self.chkSplitRinexNav.setVisible(False) # TODO: sistemare questo
+        self.rinexVersion212_radio.setEnabled(True)
+        self.rinexVersion302_radio.setEnabled(True)
         self.btnDiscoverUBXDevices.setEnabled(True)
         self.constellationsListView.setEnabled(True)
         self.ubxDevicesListView.setEnabled(True)

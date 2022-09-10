@@ -251,7 +251,8 @@ def decode_RXM_RAWX(msg):
     data = []
     data.append("RXM-RAWX")
 
-    rcvTow_Bin = "".join(msg2bits([msg[0],msg[1],msg[2],msg[3],msg[4],msg[5],msg[6],msg[7]]))
+    msg = msg[::-1]
+    rcvTow_Bin = "".join(msg2bits([msg[7],msg[6],msg[5],msg[4],msg[3],msg[2],msg[1],msg[0]]))
     rcvTow = ieee754double(rcvTow_Bin)
 
     data.append({

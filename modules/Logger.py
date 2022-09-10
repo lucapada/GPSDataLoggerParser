@@ -1,5 +1,6 @@
 import datetime
 import math
+import os
 import threading
 import time
 
@@ -104,9 +105,10 @@ class Logger():
                         if(rover_1 == rover_2) and rover_1 != 0:
                             data_rover = self.read(rover_1)
                             self.ubxFile.write(data_rover)
+                            self.ubxFile.flush()
                             self.printLog("%.2f sec (%d bytes)" % (currentTime.seconds, rover_1))
 
-                            # TODO: dopo 60 secondi raccolgo i tempi
+                            # dopo 60 secondi raccolgo i tempi
                             # if currentTime.seconds == 60:
                             #     # mando le poll per il timesync dopo 60 secondi di osservazione
                             #     self.ublox_poll_message("NAV", "TIMEUTC", 0, 0)
@@ -130,6 +132,8 @@ class Logger():
                                         self.nmeaFile.write(bytes(n.encode()))
                                         riga = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\t" + n.split(",")[1] + "\n"
                                         self.timeSyncNMEAFile.write(bytes(riga.encode()))
+                                        self.timeSyncNMEAFile.flush()
+                                        self.nmeaFile.flush()
                                 if ubxData is not None and len(ubxData) > 0:
                                     type += "UBX"
                                     for u in ubxData:
@@ -139,6 +143,7 @@ class Logger():
                                                 weekInfo = "\t" + str(u[1]['week'])
                                             riga = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\t" + str(u[1]['rcvTow']) + weekInfo + "\n"
                                             self.timeSyncFile.write(bytes(riga.encode()))
+                                            self.timeSyncFile.flush()
                                 self.printLog("Decoded %s message(s)" % type)
                             currentTime = datetime.datetime.now() - tic
                             #del data_rover
@@ -160,7 +165,15 @@ class Logger():
                 self.timeSyncFile.close()
                 self.timeSyncNMEAFile.close()
                 self.nmeaFile.close()
-                self.printLog("Closed logging files. Ready for RINEX conversion.")
+                self.printLog("Closed logging files.")
+                # X+1) rinomino i files acquisiti
+                ts = getattr(t, "nameTS", "")
+                if ts != "":
+                    os.rename(self.filePath + "/" + self.serial.port + "_rover.ubx",self.filePath + "/" + self.serial.port + "_" + ts + "_rover.ubx")
+                    os.rename(self.filePath + "/" + self.serial.port + "_times.txt",self.filePath + "/" + self.serial.port + "_" + ts + "_times.txt")
+                    os.rename(self.filePath + "/" + self.serial.port + "_NMEA_times.txt",self.filePath + "/" + self.serial.port + "_" + ts + "_NMEA_times.txt")
+                    os.rename(self.filePath + "/" + self.serial.port + "_NMEA.txt",self.filePath + "/" + self.serial.port + "_" + ts + "_NMEA.txt")
+                self.printLog("Renamed logging files adding timestamp to filename. Ready for RINEX conversion.")
             else:
                 self.printLog("Impossible to start logging: device is not enabled.")
         except Exception as errore:
