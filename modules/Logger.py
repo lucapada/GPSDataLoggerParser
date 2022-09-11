@@ -40,10 +40,10 @@ class Logger():
         self.mainWindow = mainWindow
         self.weekChanges = weekChanges
 
-        self.ubxFile = open(self.filePath + "/" + self.serial.port + "_rover.ubx","wb")
-        self.timeSyncFile = open(self.filePath + "/" + self.serial.port + "_times.txt", "wb")
-        self.timeSyncNMEAFile = open(self.filePath + "/" + self.serial.port + "_NMEA_times.txt", "wb")
-        self.nmeaFile = open(self.filePath + "/" + self.serial.port + "_NMEA.txt", "wb")
+        self.ubxFile = open(self.filePath + "/" + self.serial.port + "_rover.ubx","wb", 512)
+        self.timeSyncFile = open(self.filePath + "/" + self.serial.port + "_times.txt", "wb", 512)
+        self.timeSyncNMEAFile = open(self.filePath + "/" + self.serial.port + "_NMEA_times.txt", "wb", 512)
+        self.nmeaFile = open(self.filePath + "/" + self.serial.port + "_NMEA.txt", "wb", 512)
 
     def deactivateLogger(self):
         """
@@ -105,7 +105,7 @@ class Logger():
                         if(rover_1 == rover_2) and rover_1 != 0:
                             data_rover = self.read(rover_1)
                             self.ubxFile.write(data_rover)
-                            self.ubxFile.flush()
+                            # self.ubxFile.flush()
                             self.printLog("%.2f sec (%d bytes)" % (currentTime.seconds, rover_1))
 
                             # dopo 60 secondi raccolgo i tempi
@@ -132,8 +132,8 @@ class Logger():
                                         self.nmeaFile.write(bytes(n.encode()))
                                         riga = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\t" + n.split(",")[1] + "\n"
                                         self.timeSyncNMEAFile.write(bytes(riga.encode()))
-                                        self.timeSyncNMEAFile.flush()
-                                        self.nmeaFile.flush()
+                                        # self.timeSyncNMEAFile.flush()
+                                        # self.nmeaFile.flush()
                                 if ubxData is not None and len(ubxData) > 0:
                                     type += "UBX"
                                     for u in ubxData:
@@ -143,7 +143,7 @@ class Logger():
                                                 weekInfo = "\t" + str(u[1]['week'])
                                             riga = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\t" + str(u[1]['rcvTow']) + weekInfo + "\n"
                                             self.timeSyncFile.write(bytes(riga.encode()))
-                                            self.timeSyncFile.flush()
+                                            # self.timeSyncFile.flush()
                                 self.printLog("Decoded %s message(s)" % type)
                             currentTime = datetime.datetime.now() - tic
                             #del data_rover
