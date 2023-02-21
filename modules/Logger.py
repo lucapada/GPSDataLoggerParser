@@ -4,6 +4,8 @@ import os
 import threading
 import time
 
+from pynput import keyboard
+
 from . import SerialParser
 from .GNSS import GNSS
 from .UBXMessage import UBXMessage
@@ -40,10 +42,10 @@ class Logger():
         self.mainWindow = mainWindow
         self.weekChanges = weekChanges
 
-        self.ubxFile = open(self.filePath + "/" + self.serial.port + "_rover.ubx","wb", 512)
-        self.timeSyncFile = open(self.filePath + "/" + self.serial.port + "_times.txt", "wb", 512)
-        self.timeSyncNMEAFile = open(self.filePath + "/" + self.serial.port + "_NMEA_times.txt", "wb", 512)
-        self.nmeaFile = open(self.filePath + "/" + self.serial.port + "_NMEA.txt", "wb", 512)
+        self.ubxFile = open(self.filePath + "/" + self.serial.port.replace("/","_") + "_rover.ubx","wb", 512)
+        self.timeSyncFile = open(self.filePath + "/" + self.serial.port.replace("/","_") + "_times.txt", "wb", 512)
+        self.timeSyncNMEAFile = open(self.filePath + "/" + self.serial.port.replace("/","_") + "_NMEA_times.txt", "wb", 512)
+        self.nmeaFile = open(self.filePath + "/" + self.serial.port.replace("/","_") + "_NMEA.txt", "wb", 512)
 
     def deactivateLogger(self):
         """
@@ -56,10 +58,11 @@ class Logger():
     # Data Logging Main Function
     def logData(self):
         """
-        Funzione principale per l'acquisizione dei dati. E' la funzione che viene eseguita al lancio del thread. Nel dettaglio, configura la periferica salvandone lo stato e indicando i messaggi da ricevere (NMEA-GGA, UBX-RXM-RAWX, UBX-RXM-SFRBX, UBX-CFG-MSG, UBX-CFG-CFG).
+        Funzione principale per l'acquisizioni dei dati. E' la funzione che viene eseguita al lancio del thread. Nel dettaglio, configura la periferica salvandone lo stato e indicando i messaggi da ricevere (NMEA-GGA, UBX-RXM-RAWX, UBX-RXM-SFRBX, UBX-CFG-MSG, UBX-CFG-CFG).
         Successivamente si pone in ascolto ed elabora lo stream che riceve avvalendosi della funzione decode_ublox. Salva all'interno di files che vengono creati i risultati delle elaborazioni.
         :return:
         """
+        fileNames = [];
         try:
             t = threading.currentThread()
 
@@ -160,25 +163,85 @@ class Logger():
                                 break
                             replyLoad = self.ublox_CFG_CFG("load")
                     self.deactivateLogger()
-                # X) chiudo gli stream
-                self.ubxFile.close()
-                self.timeSyncFile.close()
-                self.timeSyncNMEAFile.close()
-                self.nmeaFile.close()
-                self.printLog("Closed logging files.")
-                # X+1) rinomino i files acquisiti
-                ts = getattr(t, "nameTS", "")
-                if ts != "":
-                    os.rename(self.filePath + "/" + self.serial.port + "_rover.ubx",self.filePath + "/" + self.serial.port + "_" + ts + "_rover.ubx")
-                    os.rename(self.filePath + "/" + self.serial.port + "_times.txt",self.filePath + "/" + self.serial.port + "_" + ts + "_times.txt")
-                    os.rename(self.filePath + "/" + self.serial.port + "_NMEA_times.txt",self.filePath + "/" + self.serial.port + "_" + ts + "_NMEA_times.txt")
-                    os.rename(self.filePath + "/" + self.serial.port + "_NMEA.txt",self.filePath + "/" + self.serial.port + "_" + ts + "_NMEA.txt")
-                self.printLog("Renamed logging files adding timestamp to filename. Ready for RINEX conversion.")
+                fileNames = self.closeStream(t)
             else:
                 self.printLog("Impossible to start logging: device is not enabled.")
         except Exception as errore:
             self.printLog("LOGGER ERROR")
             self.printLog(errore)
+            # chiudo gli stream, e prendo i nomi dei files rinominati, nel caso si voglia riprendere l'esecuzione.
+            # di default riprendo l'esecuzione dopo 15 secondi, a meno che l'utente non vuole interromperla premendo CANC in questo intervallo.
+            fileNames = self.closeStream(t)
+
+            self.printLog("An exception was encountered during the acquisition process. The data collected so far has been saved and you can resume the acquisition process within 15 seconds by pressing the CANC button, trying to reestablish the connection with the devices and continuing to save the information, otherwise the process will be aborted and you will need to start a new acquisition.")
+            maxPauseTime = 15
+            restart = 0
+
+            # The event listener will be running in this block
+            with keyboard.Events() as events:
+                # Block at most one second
+                event = events.get(maxPauseTime)
+                if event is None:
+                    self.printLog('You did not interact with the keyboard within %d second. Logging operation will be stopped and not resumed.' % maxPauseTime)
+                else:
+                    if event.key == keyboard.Key.delete:
+                        self.printLog('You interact with the keyboard. Logging operation will be resumed.')
+                        # riapro il flusso in modalità append
+                        self.ubxFile = open(fileNames[0], "ab", 512)
+                        self.timeSyncFile = open(fileNames[1], "ab", 512)
+                        self.timeSyncNMEAFile = open(fileNames[2], "ab", 512)
+                        self.nmeaFile = open(fileNames[3], "ab", 512)
+                        # riavvio il ciclo
+                        restart = 1
+
+            if restart == 1:
+                self.logData()
+
+
+    def closeStream(self, threadObj):
+        """
+        Procedura che chiude i files in cui vengono salvati i dati e li rinomina aggiungendo il timestamp al termine del nome.
+        :param threadObj: oggetto Thread relativo al log
+        :return: array contenente i nuovi nomi dei files
+        """
+
+        # X) chiudo gli stream
+        self.ubxFile.close()
+        self.timeSyncFile.close()
+        self.timeSyncNMEAFile.close()
+        self.nmeaFile.close()
+        self.printLog("Closed logging files.")
+        # X+1) rinomino i files acquisiti
+        ts = getattr(threadObj, "nameTS", "")
+        newFileNames = [
+            self.filePath + "/" + self.serial.port.replace("/", "_") + "_" + ts + "_rover.ubx",
+            self.filePath + "/" + self.serial.port.replace("/", "_") + "_" + ts + "_times.txt",
+            self.filePath + "/" + self.serial.port.replace("/", "_") + "_" + ts + "_NMEA_times.txt",
+            self.filePath + "/" + self.serial.port.replace("/", "_") + "_" + ts + "_NMEA.txt",
+        ]
+
+        # oldFileNames = [
+        #     self.filePath + "/" + self.serial.port.replace("/", "_") + "_rover.ubx",
+        #     self.filePath + "/" + self.serial.port.replace("/", "_") + "_times.txt",
+        #     self.filePath + "/" + self.serial.port.replace("/", "_") + "_NMEA_times.txt",
+        #     self.filePath + "/" + self.serial.port.replace("/", "_") + "_NMEA.txt"
+        # ]
+
+        oldFileNames = [
+            self.ubxFile.name,
+            self.timeSyncFile.name,
+            self.timeSyncNMEAFile.name,
+            self.nmeaFile.name
+        ]
+
+        if ts != "":
+            os.rename(oldFileNames[0], newFileNames[0])
+            os.rename(oldFileNames[1], newFileNames[1])
+            os.rename(oldFileNames[2], newFileNames[2])
+            os.rename(oldFileNames[3], newFileNames[3])
+        self.printLog("Renamed logging files adding timestamp to filename. Ready for RINEX conversion.")
+
+        return newFileNames
 
     def printLog(self, msg):
         """

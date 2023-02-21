@@ -32,7 +32,7 @@ class Handler(object):
 
     def handleData(self):
         """
-        Lancia il thread per l'acquisizione dei dati avente logData come funzione target.
+        Lancia il thread per l'acquisizioni dei dati avente logData come funzione target.
         :return:
         """
         self.thread.start()
@@ -40,7 +40,7 @@ class Handler(object):
     def stop(self, nameTS):
         """
         Interrompe la corsa del thread agendo su un parametro della classe.
-        :param nameTS: data e ora dell'acquisizione da aggiungere al nome del files quando l'acquisizione termina.
+        :param nameTS: data e ora dell'acquisizioni da aggiungere al nome del files quando l'acquisizioni termina.
         :return:
         """
         self.thread.stop(nameTS)

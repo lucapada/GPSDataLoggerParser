@@ -1,12 +1,12 @@
 from __future__ import annotations
 from datetime import datetime
-from distutils.version import Version
 
 import math
 import os
 import platform
 import subprocess
 import time
+import shutil
 
 import serial
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
@@ -24,8 +24,8 @@ if os.name == 'nt':
 # Mac & Linux are POSIX compliant (UNIX like systems)
 elif os.name == 'posix':
     from serial.tools.list_ports_posix import comports
-    rtklibPath = os.path.dirname(os.path.abspath(__file__) + "/RTKLIB-rtklib_2.4.3/app/consapp/convbin")
-    rtklibConvbin = "convbin"
+    rtklibPath = os.path.dirname(os.path.abspath(__file__)) + "/RTKLIB-master/app/convbin/gcc/"
+    rtklibConvbin = rtklibPath + "convbin"
 else:
     raise ImportError("OS Platform not properly detected")
 
@@ -408,7 +408,7 @@ class Ui_MainWindow():
         self.btnRecordUBX.setEnabled(True)
         self.cmbBaudRateUBX.setEnabled(True)
 
-        #se l'acquisizione è valida, posso procedere alla conversione
+        #se l'acquisizioni è valida, posso procedere alla conversione
         valid = True
         if valid:
             self.rinexGroupBox.setEnabled(True)
@@ -496,9 +496,9 @@ class Ui_MainWindow():
         if self.model is not None:
             for d in range(self.model.rowCount()):
                 if self.model.item(d).checkState() == QtCore.Qt.Checked:
-                    new_connection = self.model.item(d).text()
+                    new_connection = self.model.item(d).text().replace("/","_")
                     infile = self.txtUBXPath.text() + "/" + new_connection + "_" + self.recordTS + "_rover.ubx"
-                    infile = infile.replace("/","\\\\")
+                    infile = infile.replace("/","/")
                     outfile_obs = new_connection + "_" + self.recordTS + "_rinex.obs"
                     outfile_nav = new_connection + "_" + self.recordTS + "_rinex.nav"
                     convbin_path = rtklibPath
@@ -507,16 +507,18 @@ class Ui_MainWindow():
                         version = "3.02"
 
                     if self.chkSplitRinexNav.checkState() == QtCore.Qt.Checked:
-                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (rtklibConvbin, infile, version)
+                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s -d %s" % (rtklibConvbin, infile, version, self.txtUBXPath.text())
                     else:
-                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -o %s -n %s -v %s" % (rtklibConvbin, infile, outfile_obs, outfile_nav, version)
+                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -o %s -n %s -v %s -d %s" % (rtklibConvbin, infile, outfile_obs, outfile_nav, version, self.txtUBXPath.text())
                         
                     
                     self.printLog("[RINEX " + new_connection + "] " + run_convbin_obs)
                     print("[RINEX " + new_connection + "] " + "************* Conversion ubx --> RINEX *************")
                     os.chdir(convbin_path)
                     print(run_convbin_obs)
-                    os.system(run_convbin_obs)
+                    proc = subprocess.Popen(run_convbin_obs, stdout=subprocess.PIPE, shell=True)
+                    # os.system(run_convbin_obs)
+                    print(proc.communicate())
                     print("[RINEX " + new_connection + "] " + "************* Done! *************")
 
         # ubx files
@@ -525,9 +527,13 @@ class Ui_MainWindow():
                 if self.modelFiles.item(f).checkState() == QtCore.Qt.Checked:
                     ubxFile = self.modelFiles.item(f).text()
 
-                    infile = ubxFile
-                    pathname, extension = os.path.splitext(infile)
-                    infile = infile.replace("/","\\\\")
+                    # copio il file nella working dir
+                    pathname_old, extension_old = os.path.splitext(ubxFile)
+                    targetUBXFile = self.txtUBXPath.text() + "/" + pathname_old.split('/')[-1] + extension_old
+                    shutil.copy(ubxFile, targetUBXFile)
+                    pathname, extension = os.path.splitext(targetUBXFile)
+                    # passo questo a convbin, così da avere i file elaborati direttamente nella working dir
+                    # targetUBXFile = targetUBXFile.replace("/","/")
                     outfile_obs = pathname.split('/')[-1] + "_rinex.obs"
                     outfile_nav = pathname.split('/')[-1] + "_rinex.nav"
                     convbin_path = rtklibPath
@@ -536,9 +542,9 @@ class Ui_MainWindow():
                         version = "3.02"
 
                     if self.chkSplitRinexNav.checkState() == QtCore.Qt.Checked:
-                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (rtklibConvbin, infile, version)
+                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (rtklibConvbin, targetUBXFile, version)
                     else:
-                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (rtklibConvbin, infile, version)
+                        run_convbin_obs = "%s %s -od -os -oi -ot -ol -v %s" % (rtklibConvbin, targetUBXFile, version)
                     
                     self.printLog("[RINEX " + pathname.split('/')[-1] + "] " + run_convbin_obs)
                     print("[RINEX " + pathname.split('/')[-1] + "] " + "************* Conversion ubx --> RINEX *************")

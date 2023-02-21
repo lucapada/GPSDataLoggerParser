@@ -41,7 +41,7 @@ class ThreadWithReturn(Thread):
     def stop(self, nameTS):
         """
         Variazione dell'attributo running per l'interruzione forzata del thread.
-        :param nameTS: data e ora dell'acquisizione da aggiungere al nome del file quando l'acquisizione termina.
+        :param nameTS: data e ora dell'acquisizioni da aggiungere al nome del file quando l'acquisizioni termina.
         :return:
         """
         setattr(self, "running", False)

@@ -1,4 +1,4 @@
 .idea
 .idea/*
 venv/*
-sphinx/_build
+docs_old/sphinx/_build
