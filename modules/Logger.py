@@ -4,8 +4,6 @@ import os
 import threading
 import time
 
-from pynput import keyboard
-
 from . import SerialParser
 from .GNSS import GNSS
 from .UBXMessage import UBXMessage
@@ -13,13 +11,19 @@ from .UBXCodes import ublox_UBX_codes
 from .Utils import strfind, msg2bits, splitBytes, find, decode_NAV_TIMEBDS, decode_NAV_TIMEGAL, decode_NAV_TIMEGPS, \
     decode_NAV_TIMEGLO, decode_NAV_TIMEUTC, decode_RXM_RAWX
 
+ATTEMPTS_DEFAULT = 5
+SEC_TO_WAIT_DEFAULT = 10
+
+# utilizzo la soglia di buffer (impostata a 512) per gli snapshot in fase di acquisizione
+# SNAPSHOT_UBX_DEFAULT = 20
+# SNAPSHOT_NMEA_DEFAULT = 100
 
 class Logger():
     """
     Classe che gestisce la raccolta dati dal dispositivo.
     """
 
-    def __init__(self, mainWindow, active_serial: SerialParser, filePath: str, gnss: dict, weekChanges: bool):
+    def __init__(self, mainWindow, active_serial: SerialParser, filePath: str, gnss: dict, weekField: bool, leapSField: bool):
         """
         Costruttore dell'oggetto.
 
@@ -27,7 +31,8 @@ class Logger():
         :param active_serial: oggetto SerialParser relativo alla connessione aperta
         :param filePath: percorso in cui salvare le elaborazioni
         :param gnss: dizionario contenente i GNSS configurati, da cui ricevere dati
-        :param weekChanges: parametro booleano relativo all'inclusione del numero della settimana nel file inerente la sincronizzazione dei tempi tra GNSS e pc locale
+        :param weekField: parametro booleano relativo all'inclusione del numero della settimana nel file inerente la sincronizzazione dei tempi tra GNSS e pc locale
+        :param leapSField: parametro booleano relativo all'inclusione del numero dei leap seconds nel file inerente la sincronizzazione dei tempi tra GNSS e pc locale
         """
         self.serial = active_serial
         self.is_active = True
@@ -40,12 +45,15 @@ class Logger():
         self.gnss = gnssObj
         self.filePath = filePath
         self.mainWindow = mainWindow
-        self.weekChanges = weekChanges
+        self.weekField = weekField
+        self.leapSField = leapSField
 
         self.ubxFile = open(self.filePath + "/" + self.serial.port.replace("/","_") + "_rover.ubx","wb", 512)
         self.timeSyncFile = open(self.filePath + "/" + self.serial.port.replace("/","_") + "_times.txt", "wb", 512)
         self.timeSyncNMEAFile = open(self.filePath + "/" + self.serial.port.replace("/","_") + "_NMEA_times.txt", "wb", 512)
         self.nmeaFile = open(self.filePath + "/" + self.serial.port.replace("/","_") + "_NMEA.txt", "wb", 512)
+
+        self.attempts = ATTEMPTS_DEFAULT
 
     def deactivateLogger(self):
         """
@@ -62,146 +70,187 @@ class Logger():
         Successivamente si pone in ascolto ed elabora lo stream che riceve avvalendosi della funzione decode_ublox. Salva all'interno di files che vengono creati i risultati delle elaborazioni.
         :return:
         """
-        fileNames = [];
-        try:
-            t = threading.currentThread()
+        while self.attempts > 0:
+            try:
+                t = threading.currentThread()
 
-            if self.is_active:
-                # 1) chiudo e riapro la connessione
-                self.serial.close()
-                self.serial.open()
-                if self.serial.isOpen():
-                    # 2) configurazione UBLOX
-                    replySave = self.configure_ublox(1)
+                if self.is_active:
+                    # 1) chiudo e riapro la connessione
+                    self.serial.close()
+                    self.serial.open()
+                    if self.serial.isOpen():
+                        # 1.1) azzero i tentativi, visto che se sono qui sicuramente sono riuscito a ripristinare la connessione, azzero i contatori per gli snapshot
+                        self.attempts = ATTEMPTS_DEFAULT
+                        # SNAPSHOT_UBX = 0
+                        # SNAPSHOT_NMEA = 0
+                        # 2) configurazione UBLOX
+                        replySave = self.configure_ublox(1)
 
-                    # 3) COLLEZIONE DATI
-                    tic = datetime.datetime.now()
-                    receiverDelay = 0.05
+                        # 3) COLLEZIONE DATI
+                        tic = datetime.datetime.now()
+                        receiverDelay = 0.05
 
-                    # 3.1) inizio raccolta dati
-                    rover_1 = 0
-                    rover_2 = 0
-                    while (rover_1 != rover_2) or (rover_1 == 0) or (rover_1 < 0):
-                        currentTime = datetime.datetime.now() - tic
-                        rover_1 = self.in_waiting()
-                        time.sleep(receiverDelay)
-                        rover_2 = self.in_waiting()
-                    self.printLog("%.2f sec (%4d bytes -> %4d bytes)" % (currentTime.seconds, rover_1, rover_2))
-
-                    # svuoto la porta raccogliendo i dati inviati finora e depositandoli in data_rover
-                    data_rover = self.read(rover_1)
-
-                    # 3.3) mi metto in ascolto perenne
-                    while self.is_active and getattr(t, "running", True):
-                        currentTime = datetime.datetime.now() - tic
-                        rover_init = self.in_waiting()
-                        rover_1 = rover_init
-                        rover_2 = rover_init
-                        dtMax_rover = 2
-
-                        while (rover_1 != rover_2 or rover_1 == rover_init) and currentTime.seconds < dtMax_rover:
+                        # 3.1) inizio raccolta dati
+                        rover_1 = 0
+                        rover_2 = 0
+                        while (rover_1 != rover_2) or (rover_1 == 0) or (rover_1 < 0):
                             currentTime = datetime.datetime.now() - tic
                             rover_1 = self.in_waiting()
                             time.sleep(receiverDelay)
                             rover_2 = self.in_waiting()
+                        self.printLog("%.2f sec (%4d bytes -> %4d bytes)" % (currentTime.seconds, rover_1, rover_2))
 
-                        if(rover_1 == rover_2) and rover_1 != 0:
-                            data_rover = self.read(rover_1)
-                            self.ubxFile.write(data_rover)
-                            # self.ubxFile.flush()
-                            self.printLog("%.2f sec (%d bytes)" % (currentTime.seconds, rover_1))
+                        # svuoto la porta raccogliendo i dati inviati finora e depositandoli in data_rover
+                        data_rover = self.read(rover_1)
 
-                            # dopo 60 secondi raccolgo i tempi
-                            # if currentTime.seconds == 60:
-                            #     # mando le poll per il timesync dopo 60 secondi di osservazione
-                            #     self.ublox_poll_message("NAV", "TIMEUTC", 0, 0)
-                            #     if self.gnss['constellations'][0]['enable'] == 1:
-                            #         self.ublox_poll_message("NAV", "TIMEGPS", 0, 0)
-                            #     if self.gnss['constellations'][2]['enable'] == 1:
-                            #         self.ublox_poll_message("NAV", "TIMEGAL", 0, 0)
-                            #     if self.gnss['constellations'][3]['enable'] == 1:
-                            #         self.ublox_poll_message("NAV", "TIMEBDS", 0, 0)
-                            #     if self.gnss['constellations'][6]['enable'] == 1:
-                            #         self.ublox_poll_message("NAV", "TIMEGLO", 0, 0)
-
-                            # leggo il datarover
-                            (ubxData, nmeaData) = self.decode_ublox(data_rover)
-
+                        # 3.3) mi metto in ascolto perenne
+                        while self.is_active and getattr(t, "running", True):
                             type = ""
-                            if (nmeaData is not None or ubxData is not None) and (len(nmeaData) > 0 or len(ubxData) > 0):
-                                if nmeaData is not None and len(nmeaData) > 0:
-                                    type += " NMEA"
-                                    for n in nmeaData:
-                                        self.nmeaFile.write(bytes(n.encode()))
-                                        riga = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\t" + n.split(",")[1] + "\n"
-                                        self.timeSyncNMEAFile.write(bytes(riga.encode()))
-                                        # self.timeSyncNMEAFile.flush()
-                                        # self.nmeaFile.flush()
-                                if ubxData is not None and len(ubxData) > 0:
-                                    type += "UBX"
-                                    for u in ubxData:
-                                        if u[0] == "RXM-RAWX":
-                                            weekInfo = ""
-                                            if self.weekChanges is True:
-                                                weekInfo = "\t" + str(u[1]['week'])
-                                            riga = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\t" + str(u[1]['rcvTow']) + weekInfo + "\n"
-                                            self.timeSyncFile.write(bytes(riga.encode()))
-                                            # self.timeSyncFile.flush()
-                                self.printLog("Decoded %s message(s)" % type)
                             currentTime = datetime.datetime.now() - tic
-                            #del data_rover
+                            rover_init = self.in_waiting()
+                            rover_1 = rover_init
+                            rover_2 = rover_init
+                            dtMax_rover = 2
 
-                    # X-1) ripristino configurazione originale
-                    if replySave:
-                        self.printLog("Restoring saved u-blox receiver configuration...")
-                        replyLoad = self.ublox_CFG_CFG("load")
-                        tries = 0
-                        while replySave and not replyLoad:
-                            tries += 1
-                            if tries > 3:
-                                self.printLog("It was not possible to reload the receiver previous configuration.")
-                                break
+                            while (rover_1 != rover_2 or rover_1 == rover_init) and currentTime.seconds < dtMax_rover:
+                                currentTime = datetime.datetime.now() - tic
+                                rover_1 = self.in_waiting()
+                                time.sleep(receiverDelay)
+                                rover_2 = self.in_waiting()
+
+                            if(rover_1 == rover_2) and rover_1 != 0:
+                                data_rover = self.read(rover_1)
+                                self.ubxFile.write(data_rover)
+                                # self.ubxFile.flush()
+                                self.printLog("%.2f sec (%d bytes)" % (currentTime.seconds, rover_1))
+
+                                # dopo 60 secondi raccolgo i tempi
+                                # if currentTime.seconds == 60:
+                                #     # mando le poll per il timesync dopo 60 secondi di osservazione
+                                #     self.ublox_poll_message("NAV", "TIMEUTC", 0, 0)
+                                #     if self.gnss['constellations'][0]['enable'] == 1:
+                                #         self.ublox_poll_message("NAV", "TIMEGPS", 0, 0)
+                                #     if self.gnss['constellations'][2]['enable'] == 1:
+                                #         self.ublox_poll_message("NAV", "TIMEGAL", 0, 0)
+                                #     if self.gnss['constellations'][3]['enable'] == 1:
+                                #         self.ublox_poll_message("NAV", "TIMEBDS", 0, 0)
+                                #     if self.gnss['constellations'][6]['enable'] == 1:
+                                #         self.ublox_poll_message("NAV", "TIMEGLO", 0, 0)
+
+                                # leggo il datarover
+                                (ubxData, nmeaData) = self.decode_ublox(data_rover)
+
+                                if (nmeaData is not None or ubxData is not None) and (len(nmeaData) > 0 or len(ubxData) > 0):
+                                    if nmeaData is not None and len(nmeaData) > 0:
+                                        type += " NMEA"
+                                        for n in nmeaData:
+                                            self.nmeaFile.write(bytes(n.encode()))
+                                            riga = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\t" + n.split(",")[1] + "\n"
+                                            self.timeSyncNMEAFile.write(bytes(riga.encode()))
+                                        # SNAPSHOT_NMEA += len(nmeaData)
+                                    if ubxData is not None and len(ubxData) > 0:
+                                        for u in ubxData:
+                                            if u[0] == "RXM-RAWX":
+                                                type += " UBX"
+                                                # aggiungo la week?
+                                                weekInfo = ""
+                                                if self.weekField is True:
+                                                    weekInfo = "\t" + str(u[1]['week'])
+                                                # aggiungo leapS?
+                                                leapSInfo = ""
+                                                if self.leapSField is True:
+                                                    leapSInfo = "\t" + str(u[1]['leapS'])
+                                                riga = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\t" + str(u[1]['rcvTow']) + weekInfo + leapSInfo + "\n"
+                                                self.timeSyncFile.write(bytes(riga.encode()))
+                                                # SNAPSHOT_UBX += 1
+
+                                    self.printLog("Decoded %s message(s)" % (type[1:len(type)]))
+
+                                    # temporaneamente disattivato: utilizzo la soglia a 512 nel buffer di output per gli snapshot...
+                                    #
+                                    # ogni X messaggi intercettati (quindi scritti) salvo uno snapshot
+                                    # non uso il metodo closeStream perché differenzio UBX ed NMEA...
+                                    # TODO: in caso di cambio di nomenclatura dei files, cambiare qui...
+                                    # if SNAPSHOT_UBX >= SNAPSHOT_UBX_DEFAULT:
+                                    #     self.printLog("%d datagram UBX reached. Save Snapshot..." % SNAPSHOT_UBX)
+                                    #     self.ubxFile.close()
+                                    #     self.timeSyncFile.close()
+                                    #     # time.sleep(0.01)
+                                    #     self.ubxFile = open(self.filePath + "/" + self.serial.port.replace("/", "_") + "_rover.ubx", "ab", 512)
+                                    #     self.timeSyncFile = open(self.filePath + "/" + self.serial.port.replace("/", "_") + "_times.txt", "ab", 512)
+                                    #     SNAPSHOT_UBX = 0
+                                    #     self.printLog("UBX snapshot saved. Continue logging...")
+                                    #
+                                    # if SNAPSHOT_NMEA >= SNAPSHOT_NMEA_DEFAULT:
+                                    #     self.printLog("%d NMEA sentences reached. Save Snapshot..." % SNAPSHOT_NMEA)
+                                    #     self.ubxFile.close()
+                                    #     self.nmeaFile.close()
+                                    #     self.timeSyncNMEAFile.close()
+                                    #     # time.sleep(0.01)
+                                    #     self.ubxFile = open(self.filePath + "/" + self.serial.port.replace("/", "_") + "_rover.ubx", "ab", 512)
+                                    #     self.nmeaFile = open(self.filePath + "/" + self.serial.port.replace("/", "_") + "_NMEA.txt", "ab", 512)
+                                    #     self.timeSyncNMEAFile = open(self.filePath + "/" + self.serial.port.replace("/", "_") + "_NMEA_times.txt", "ab", 512)
+                                    #     SNAPSHOT_NMEA = 0
+                                    #     self.printLog("NMEA snapshot saved. Continue logging...")
+
+                                currentTime = datetime.datetime.now() - tic
+                                # del data_rover
+
+                        # X-1) ripristino configurazione originale
+                        if replySave:
+                            self.printLog("Restoring saved u-blox receiver configuration...")
                             replyLoad = self.ublox_CFG_CFG("load")
-                    self.deactivateLogger()
-                fileNames = self.closeStream(t)
-            else:
-                self.printLog("Impossible to start logging: device is not enabled.")
-        except Exception as errore:
-            self.printLog("LOGGER ERROR")
-            self.printLog(errore)
-            # chiudo gli stream, e prendo i nomi dei files rinominati, nel caso si voglia riprendere l'esecuzione.
-            # di default riprendo l'esecuzione dopo 15 secondi, a meno che l'utente non vuole interromperla premendo CANC in questo intervallo.
-            fileNames = self.closeStream(t)
-
-            self.printLog("An exception was encountered during the acquisition process. The data collected so far has been saved and you can resume the acquisition process within 15 seconds by pressing the CANC button, trying to reestablish the connection with the devices and continuing to save the information, otherwise the process will be aborted and you will need to start a new acquisition.")
-            maxPauseTime = 15
-            restart = 0
-
-            # The event listener will be running in this block
-            with keyboard.Events() as events:
-                # Block at most one second
-                event = events.get(maxPauseTime)
-                if event is None:
-                    self.printLog('You did not interact with the keyboard within %d second. Logging operation will be stopped and not resumed.' % maxPauseTime)
+                            tries = 0
+                            while replySave and not replyLoad:
+                                tries += 1
+                                if tries > 3:
+                                    self.printLog("It was not possible to reload the receiver previous configuration.")
+                                    break
+                                replyLoad = self.ublox_CFG_CFG("load")
+                        self.deactivateLogger()
+                        self.attempts = 0
+                    # self.printLog("Closing logging files.")
+                    # fileNames = self.closeStream(t, True)
                 else:
-                    if event.key == keyboard.Key.delete:
-                        self.printLog('You interact with the keyboard. Logging operation will be resumed.')
-                        # riapro il flusso in modalità append
-                        self.ubxFile = open(fileNames[0], "ab", 512)
-                        self.timeSyncFile = open(fileNames[1], "ab", 512)
-                        self.timeSyncNMEAFile = open(fileNames[2], "ab", 512)
-                        self.nmeaFile = open(fileNames[3], "ab", 512)
-                        # riavvio il ciclo
-                        restart = 1
+                    self.printLog("Impossible to start logging: device is not enabled.")
+            except OSError as errore:
+                # il software prova autonomamente a ristabilire la connessione
+                secToWait = SEC_TO_WAIT_DEFAULT
 
-            if restart == 1:
-                self.logData()
+                # stampo errore
+                self.printLog("LOGGER ERROR")
+                errorText = "Oops. It seems that the receiver is no longer connected. It will make %d attempts to reconnect, every %d seconds." % (self.attempts, secToWait)
+                self.printLog(errorText)
 
+                # chiudo subito i files
+                fileNames = self.closeStream(t, False)
+                # riapro i files: OCCHIO ALL'INDICE di fileNames! GUARDARE I FILES ALL'INTERNO di closeStream!
+                self.ubxFile = open(fileNames[0], "ab", 512)
+                self.timeSyncFile = open(fileNames[1], "ab", 512)
+                self.timeSyncNMEAFile = open(fileNames[2], "ab", 512)
+                self.nmeaFile = open(fileNames[3], "ab", 512)
 
-    def closeStream(self, threadObj):
+                # diminuisco i tentativi
+                errorText = "Attempt no. %d" % (ATTEMPTS_DEFAULT - self.attempts)
+                self.printLog(errorText)
+                time.sleep(secToWait)
+                self.attempts -= 1
+            except Exception as exceptionError:
+                self.printLog("LOGGER ERROR")
+                self.printLog(exceptionError)
+                self.printLog("Logging operation interrupted. No more data will be acquired")
+                # in caso di eccezione non dovuta a dispositivo sconnesso, interrompo l'acquisizione
+                # TODO: se si desidera consumare un tentativo, diminuire di uno al posto di impostare a 0
+                self.attempts = 0
+
+        self.printLog("Closing logging files.")
+        fileNames = self.closeStream(t, True)
+
+    def closeStream(self, threadObj, renameFiles = False):
         """
         Procedura che chiude i files in cui vengono salvati i dati e li rinomina aggiungendo il timestamp al termine del nome.
         :param threadObj: oggetto Thread relativo al log
+        :param renameFiles: flag che rinomina il file con la data di inizio acquisizione se impostato a True
         :return: array contenente i nuovi nomi dei files
         """
 
@@ -210,9 +259,10 @@ class Logger():
         self.timeSyncFile.close()
         self.timeSyncNMEAFile.close()
         self.nmeaFile.close()
-        self.printLog("Closed logging files.")
-        # X+1) rinomino i files acquisiti
+
+        # X+1) rinomino i files acquisiti (solo se il booleano è a true)
         ts = getattr(threadObj, "nameTS", "")
+
         newFileNames = [
             self.filePath + "/" + self.serial.port.replace("/", "_") + "_" + ts + "_rover.ubx",
             self.filePath + "/" + self.serial.port.replace("/", "_") + "_" + ts + "_times.txt",
@@ -234,14 +284,18 @@ class Logger():
             self.nmeaFile.name
         ]
 
-        if ts != "":
-            os.rename(oldFileNames[0], newFileNames[0])
-            os.rename(oldFileNames[1], newFileNames[1])
-            os.rename(oldFileNames[2], newFileNames[2])
-            os.rename(oldFileNames[3], newFileNames[3])
-        self.printLog("Renamed logging files adding timestamp to filename. Ready for RINEX conversion.")
-
-        return newFileNames
+        if ts is not None and ts != "":
+            if renameFiles is True:
+                os.rename(oldFileNames[0], newFileNames[0])
+                os.rename(oldFileNames[1], newFileNames[1])
+                os.rename(oldFileNames[2], newFileNames[2])
+                os.rename(oldFileNames[3], newFileNames[3])
+                self.printLog("Renamed logging files adding timestamp to filename. Ready for RINEX conversion.")
+                return newFileNames
+            else:
+                return oldFileNames
+        else:
+            return oldFileNames
 
     def printLog(self, msg):
         """

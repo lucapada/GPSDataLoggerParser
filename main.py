@@ -16,11 +16,12 @@ from modules.BackendHandler import Handler
 from modules.UBXMessage import UBXMessage
 from modules.Utils import msg2bits, splitBytes, strfind, find, decode_RXM_RAWX
 
+# RTKLib tool configuration for both unix and windowsnt
 # from WindowsNT
 if os.name == 'nt':
     from serial.tools.list_ports_windows import comports
-    rtklibPath = os.path.dirname(os.path.abspath(__file__)) + "/RTKLIB_bin-master/bin"
-    rtklibConvbin = "convbin.exe"
+    rtklibPath = os.path.dirname(os.path.abspath(__file__)) + "/RTKLIB-master/bin/"
+    rtklibConvbin = rtklibPath + "convbin.exe"
 # Mac & Linux are POSIX compliant (UNIX like systems)
 elif os.name == 'posix':
     from serial.tools.list_ports_posix import comports
@@ -31,6 +32,9 @@ else:
 
 BAUDRATES = ['9600', '57600']
 CONSTELLATIONS = ["GPS","SBAS","Galileo","BeiDou","IMES","QZSS","GLONASS"]
+
+# PARAMS to Configure
+TIMEOUT = 10
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
@@ -283,7 +287,7 @@ class Ui_MainWindow():
         self.btnAddFile.setText(_translate("MainWindow", "Add File(s)"))
         self.btnRemoveSelectedFile.setText(_translate("MainWindow", "Remove Selected Files"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), _translate("MainWindow", "UBX Files"))
-        self.groupBox_3.setTitle(_translate("MainWindow", "Constellations"))
+        self.groupBox_3.setTitle(_translate("MainWindow", "GNSS"))
         self.rinexGroupBox.setTitle(_translate("MainWindow", "RINEX Conversion"))
         self.groupBox_4.setTitle(_translate("MainWindow", "RINEX Version"))
         self.rinexVersion212_radio.setText(_translate("MainWindow", "2.12"))
@@ -359,17 +363,25 @@ class Ui_MainWindow():
             self.btnRecordUBX.setEnabled(False)
             self.cmbBaudRateUBX.setEnabled(False)
 
-            weekChanges = False
+            weekField = False
             qm = QtWidgets.QMessageBox
-            r = qm.question(self.MainWindow, "Week Changes", "May the week change during relief (in case of night surveys)?",
+            r = qm.question(self.MainWindow, "[UBX-RXM-RAWX] 'week' field", "Do you want to have GPS week number in receiver local time reported in the UBX/PC time sync file?",
                             qm.Yes | qm.No)
             if r == qm.Yes:
-                weekChanges = True
+                weekField = True
+
+            leapSField = False
+            qm = QtWidgets.QMessageBox
+            r = qm.question(self.MainWindow, "[UBX-RXM-RAWX] 'leapS' field",
+                            "Do you want to have GPS leap seconds (GPS-UTC) reported in the UBX/PC time sync file?",
+                            qm.Yes | qm.No)
+            if r == qm.Yes:
+                leapSField = True
 
             for d in range(self.model.rowCount()):
                 if self.model.item(d).checkState() == QtCore.Qt.Checked:
                     new_connection = self.model.item(d).text()
-                    new_handler = Handler(self, new_connection, self.cmbBaudRateUBX.currentText(), new_GNSS, self.txtUBXPath.text(), weekChanges)
+                    new_handler = Handler(self, new_connection, self.cmbBaudRateUBX.currentText(), TIMEOUT, new_GNSS, self.txtUBXPath.text(), weekField, leapSField)
                     if new_handler.isActive():
                         self.CONNECTED_PORTS.append(new_connection)
                         self.HANDLERS[new_connection] = new_handler
@@ -511,7 +523,7 @@ class Ui_MainWindow():
                     else:
                         run_convbin_obs = "%s %s -od -os -oi -ot -ol -o %s -n %s -v %s -d %s" % (rtklibConvbin, infile, outfile_obs, outfile_nav, version, self.txtUBXPath.text())
                         
-                    
+                    # TODO: check if initial rtklibPath modification works on both linux and windows system (I modified on windows...)
                     self.printLog("[RINEX " + new_connection + "] " + run_convbin_obs)
                     print("[RINEX " + new_connection + "] " + "************* Conversion ubx --> RINEX *************")
                     os.chdir(convbin_path)
@@ -633,7 +645,7 @@ class Ui_MainWindow():
             s.close()
             del s
         # -------------------------------------------------------------------
-        else:
+        if len(active_ports) == 0:
             self.printLog("No u-blox(s) device detected...")
         return active_ports
 

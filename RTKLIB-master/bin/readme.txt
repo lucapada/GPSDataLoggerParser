@@ -1,6 +1,6 @@
 #
-# RTKLIB/bin
+#  RTKLIB_bin 2.4.2 p11
 #
 
-The contents of RTKLIB/bin have been moved to RTKLIB_bin/bin
+The binary APs and DLLs for Windows.
 
