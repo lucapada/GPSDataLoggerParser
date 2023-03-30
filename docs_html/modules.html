@@ -1,0 +1,291 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Code Documentation &#8212; GPSDataLoggerParser 1.2 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-modules.SerialParser">
+<span id="code-documentation"></span><h1>Code Documentation<a class="headerlink" href="#module-modules.SerialParser" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="modules.SerialParser.SerialParser">
+<em class="property">class </em><code class="descclassname">modules.SerialParser.</code><code class="descname">SerialParser</code><span class="sig-paren">(</span><em>mainWindow</em>, <em>port</em>, <em>baudRate</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/SerialParser.html#SerialParser"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.SerialParser.SerialParser" title="Permalink to this definition">¶</a></dt>
+<dd><p>Classe che gestisce l’interazione con la porta seriale COM.</p>
+<dl class="method">
+<dt id="modules.SerialParser.SerialParser.error_n_die">
+<code class="descname">error_n_die</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/SerialParser.html#SerialParser.error_n_die"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.SerialParser.SerialParser.error_n_die" title="Permalink to this definition">¶</a></dt>
+<dd><p>Stampa a video eventuali errori dovuti a chiusure improvvise della porta.
+:return:</p>
+</dd></dl>
+
+</dd></dl>
+
+<span class="target" id="module-modules.ThreadWithReturn"></span><dl class="class">
+<dt id="modules.ThreadWithReturn.ThreadWithReturn">
+<em class="property">class </em><code class="descclassname">modules.ThreadWithReturn.</code><code class="descname">ThreadWithReturn</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn" title="Permalink to this definition">¶</a></dt>
+<dd><p>Classe che estende la classe Thread. Crea un Thread indicando una funzione target passata come argomento del costruttore.</p>
+<dl class="method">
+<dt id="modules.ThreadWithReturn.ThreadWithReturn.join">
+<code class="descname">join</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn.join"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn.join" title="Permalink to this definition">¶</a></dt>
+<dd><p># Chiamata al join padre
+:param args:
+:param kwargs:
+:return:</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="modules.ThreadWithReturn.ThreadWithReturn.run">
+<code class="descname">run</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>override del metodo run(), necessario perché run chiama solo la funzione target.
+:return:</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="modules.ThreadWithReturn.ThreadWithReturn.stop">
+<code class="descname">stop</code><span class="sig-paren">(</span><em>nameTS</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn.stop"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn.stop" title="Permalink to this definition">¶</a></dt>
+<dd><p>Variazione dell’attributo running per l’interruzione forzata del thread.
+:param nameTS: data e ora dell’acquisizione da aggiungere al nome del file quando l’acquisizione termina.
+:return:</p>
+</dd></dl>
+
+</dd></dl>
+
+<span class="target" id="module-modules.UBXMessage"></span><dl class="class">
+<dt id="modules.UBXMessage.UBXMessage">
+<em class="property">class </em><code class="descclassname">modules.UBXMessage.</code><code class="descname">UBXMessage</code><span class="sig-paren">(</span><em>classId: str</em>, <em>msgId: str</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage" title="Permalink to this definition">¶</a></dt>
+<dd><p>Classe che permette l’assemblaggio di un messaggio UBX.</p>
+<dl class="method">
+<dt id="modules.UBXMessage.UBXMessage.aggiungiByte">
+<code class="descname">aggiungiByte</code><span class="sig-paren">(</span><em>valore</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.aggiungiByte"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.aggiungiByte" title="Permalink to this definition">¶</a></dt>
+<dd><p>Aggiunge il byte passato come parametro al messaggio.
+:param valore:
+:return:</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="modules.UBXMessage.UBXMessage.aggiungiBytes">
+<code class="descname">aggiungiBytes</code><span class="sig-paren">(</span><em>valore</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.aggiungiBytes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.aggiungiBytes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Aggiunge un elenco di bytes passato come parametro al messaggio.
+:param valore:
+:return:</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="modules.UBXMessage.UBXMessage.calcola_checksum">
+<code class="descname">calcola_checksum</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.calcola_checksum"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.calcola_checksum" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione che calcola il checksum, secondo l’algoritmo indicato nel manuale UBX, ritornando i due bytes da appendere al messaggio.
+:return:</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="modules.UBXMessage.UBXMessage.getMessaggio">
+<code class="descname">getMessaggio</code><span class="sig-paren">(</span><em>toString=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.getMessaggio"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.getMessaggio" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ritorna il messaggio in formato stringa o come array di byte.
+:param toString:
+:return:</p>
+</dd></dl>
+
+</dd></dl>
+
+<span class="target" id="module-modules.UBXCodes"></span><dl class="function">
+<dt id="modules.UBXCodes.ublox_UBX_codes">
+<code class="descclassname">modules.UBXCodes.</code><code class="descname">ublox_UBX_codes</code><span class="sig-paren">(</span><em>classIn</em>, <em>idIn</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXCodes.html#ublox_UBX_codes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXCodes.ublox_UBX_codes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Restituisce l’intestazione del messaggio dato classe e id.
+:param classIn:
+:param idIn:
+:return:</p>
+</dd></dl>
+
+<span class="target" id="module-modules.Utils"></span><dl class="function">
+<dt id="modules.Utils.decode_NAV_TIMEBDS">
+<code class="descclassname">modules.Utils.</code><code class="descname">decode_NAV_TIMEBDS</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEBDS"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEBDS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-NAV-TIMEBDS
+:param msg:
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.decode_NAV_TIMEGAL">
+<code class="descclassname">modules.Utils.</code><code class="descname">decode_NAV_TIMEGAL</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEGAL"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEGAL" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-NAV-TIMEGAL
+:param msg:
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.decode_NAV_TIMEGLO">
+<code class="descclassname">modules.Utils.</code><code class="descname">decode_NAV_TIMEGLO</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEGLO"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEGLO" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-NAV-TIMEGLO
+:param msg:
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.decode_NAV_TIMEGPS">
+<code class="descclassname">modules.Utils.</code><code class="descname">decode_NAV_TIMEGPS</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEGPS"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEGPS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-NAV-TIMEGPS
+:param msg:
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.decode_NAV_TIMEUTC">
+<code class="descclassname">modules.Utils.</code><code class="descname">decode_NAV_TIMEUTC</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEUTC"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEUTC" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-NAV-TIMEUTC
+:param msg:
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.decode_RXM_RAWX">
+<code class="descclassname">modules.Utils.</code><code class="descname">decode_RXM_RAWX</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_RXM_RAWX"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_RXM_RAWX" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-RXM-RAWX
+:param msg:
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.find">
+<code class="descclassname">modules.Utils.</code><code class="descname">find</code><span class="sig-paren">(</span><em>elements</em>, <em>greaterThan</em>, <em>topK</em>, <em>equals=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#find"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.find" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione che ricerca i primi topK elementi maggiori/uguali di un dato elemento all’interno di una collezione di elementi.
+:param elements: collezione di elementi
+:param greaterThan: elemento soglia
+:param topK: numero di elementi da restituire
+:param equals: gli elementi devono essere uguali o maggiori di greaterThan?
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.ieee754double">
+<code class="descclassname">modules.Utils.</code><code class="descname">ieee754double</code><span class="sig-paren">(</span><em>bits</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#ieee754double"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.ieee754double" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ritorna la cifra reale dati 64 bit seguendo lo standard IEEE754.
+:param bits:
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.ieee754single">
+<code class="descclassname">modules.Utils.</code><code class="descname">ieee754single</code><span class="sig-paren">(</span><em>bits</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#ieee754single"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.ieee754single" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ritorna la cifra reale dati 32 bit seguendo lo standard IEEE754.
+:param bits:
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.ismember">
+<code class="descclassname">modules.Utils.</code><code class="descname">ismember</code><span class="sig-paren">(</span><em>A: list</em>, <em>B: list</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#ismember"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.ismember" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns an array of size A. If elements of A is contained in B returns True for that element, otherwise False.
+You can control all the elements are False by using not any(ismember(A,B))
+:param A:
+:param B:
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.msg2bits">
+<code class="descclassname">modules.Utils.</code><code class="descname">msg2bits</code><span class="sig-paren">(</span><em>msgBytes: list</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#msg2bits"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.msg2bits" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione che codifica ciascun byte presente nell’array “msgBytes” nel corrispettivo bit, ritornando una lista di bit.
+:param msgBytes:
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.splitBytes">
+<code class="descclassname">modules.Utils.</code><code class="descname">splitBytes</code><span class="sig-paren">(</span><em>stream: bytes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#splitBytes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.splitBytes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Riceve uno stream di bytes e crea un array contenente ciascun byte in ciascuna posizione.
+:param stream:
+:return:</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="modules.Utils.strfind">
+<code class="descclassname">modules.Utils.</code><code class="descname">strfind</code><span class="sig-paren">(</span><em>what: bytes</em>, <em>where: bytes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#strfind"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.strfind" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione che trova la stringa “what” nella stringa “where” e restituisce un array di corrispondenze.
+:param what:
+:param where:
+:return:</p>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">GPSDataLoggerParser</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, Luca Padalino.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.5</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+      |
+      <a href="_sources/modules.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
