@@ -1,23 +1,23 @@
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Code Documentation &#8212; GPSDataLoggerParser 1.2 documentation</title>
-    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-    <script type="text/javascript" src="_static/jquery.js"></script>
-    <script type="text/javascript" src="_static/underscore.js"></script>
-    <script type="text/javascript" src="_static/doctools.js"></script>
-    <script type="text/javascript" src="_static/language_data.js"></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>modules package &#8212; GNSS DataLogger and Parser Documentation 1.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Welcome to GNSSDataLoggerAndParser Documentation’s documentation!" href="index.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
   
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
 
@@ -27,83 +27,325 @@
     <div class="document">
       <div class="documentwrapper">
         <div class="bodywrapper">
+          
+
           <div class="body" role="main">
             
-  <div class="section" id="module-modules.SerialParser">
-<span id="code-documentation"></span><h1>Code Documentation<a class="headerlink" href="#module-modules.SerialParser" title="Permalink to this headline">¶</a></h1>
-<dl class="class">
-<dt id="modules.SerialParser.SerialParser">
-<em class="property">class </em><code class="descclassname">modules.SerialParser.</code><code class="descname">SerialParser</code><span class="sig-paren">(</span><em>mainWindow</em>, <em>port</em>, <em>baudRate</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/SerialParser.html#SerialParser"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.SerialParser.SerialParser" title="Permalink to this definition">¶</a></dt>
-<dd><p>Classe che gestisce l’interazione con la porta seriale COM.</p>
-<dl class="method">
-<dt id="modules.SerialParser.SerialParser.error_n_die">
-<code class="descname">error_n_die</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/SerialParser.html#SerialParser.error_n_die"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.SerialParser.SerialParser.error_n_die" title="Permalink to this definition">¶</a></dt>
-<dd><p>Stampa a video eventuali errori dovuti a chiusure improvvise della porta.
+  <section id="modules-package">
+<h1>modules package<a class="headerlink" href="#modules-package" title="Permalink to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
+</section>
+<section id="module-modules.BackendHandler">
+<span id="modules-backendhandler-module"></span><h2>modules.BackendHandler module<a class="headerlink" href="#module-modules.BackendHandler" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="modules.BackendHandler.Handler">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">modules.BackendHandler.</span></span><span class="sig-name descname"><span class="pre">Handler</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mainWindow</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">baudrate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">9600</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gnss</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filePath</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weekField</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">leapSField</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/BackendHandler.html#Handler"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.BackendHandler.Handler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Per ogni ricevitore viene creata una classe Handler. Questa classe si occupa di creare tutti gli oggetti necessari per gestire la connessione con la periferica, lo scarico e la richiesta dei dati e svolgere il tutto all’interno di un thread.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.BackendHandler.Handler.handleData">
+<span class="sig-name descname"><span class="pre">handleData</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/BackendHandler.html#Handler.handleData"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.BackendHandler.Handler.handleData" title="Permalink to this definition">¶</a></dt>
+<dd><p>Lancia il thread per l’acquisizioni dei dati avente logData come funzione target.
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.BackendHandler.Handler.isActive">
+<span class="sig-name descname"><span class="pre">isActive</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/BackendHandler.html#Handler.isActive"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.BackendHandler.Handler.isActive" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ritorna true se la connessione è attiva, altrimenti false.
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.BackendHandler.Handler.join">
+<span class="sig-name descname"><span class="pre">join</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/BackendHandler.html#Handler.join"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.BackendHandler.Handler.join" title="Permalink to this definition">¶</a></dt>
+<dd><p>Metodo che viene invocato alla chiusura del thread. Chiude la connessione con la periferica e attende l’esecuzione del thread.
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.BackendHandler.Handler.stop">
+<span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nameTS</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/BackendHandler.html#Handler.stop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.BackendHandler.Handler.stop" title="Permalink to this definition">¶</a></dt>
+<dd><p>Interrompe la corsa del thread agendo su un parametro della classe.
+:param nameTS: data e ora dell’acquisizioni da aggiungere al nome del files quando l’acquisizioni termina.
 :return:</p>
 </dd></dl>
 
 </dd></dl>
 
-<span class="target" id="module-modules.ThreadWithReturn"></span><dl class="class">
-<dt id="modules.ThreadWithReturn.ThreadWithReturn">
-<em class="property">class </em><code class="descclassname">modules.ThreadWithReturn.</code><code class="descname">ThreadWithReturn</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn" title="Permalink to this definition">¶</a></dt>
-<dd><p>Classe che estende la classe Thread. Crea un Thread indicando una funzione target passata come argomento del costruttore.</p>
-<dl class="method">
-<dt id="modules.ThreadWithReturn.ThreadWithReturn.join">
-<code class="descname">join</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn.join"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn.join" title="Permalink to this definition">¶</a></dt>
+</section>
+<section id="module-modules.GNSS">
+<span id="modules-gnss-module"></span><h2>modules.GNSS module<a class="headerlink" href="#module-modules.GNSS" title="Permalink to this heading">¶</a></h2>
+</section>
+<section id="module-modules.Logger">
+<span id="modules-logger-module"></span><h2>modules.Logger module<a class="headerlink" href="#module-modules.Logger" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="modules.Logger.Logger">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">modules.Logger.</span></span><span class="sig-name descname"><span class="pre">Logger</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mainWindow</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active_serial:</span> <span class="pre">&lt;module</span> <span class="pre">'modules.SerialParser'</span> <span class="pre">from</span> <span class="pre">'/home/luca/Nextcloud/uni/GPSDataLoggerParser/modules/SerialParser.py'&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filePath:</span> <span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gnss:</span> <span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weekField:</span> <span class="pre">bool</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">leapSField:</span> <span class="pre">bool</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Classe che gestisce la raccolta dati dal dispositivo.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.closeStream">
+<span class="sig-name descname"><span class="pre">closeStream</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">threadObj</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">renameFiles</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.closeStream"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.closeStream" title="Permalink to this definition">¶</a></dt>
+<dd><p>Procedura che chiude i files in cui vengono salvati i dati e li rinomina aggiungendo il timestamp al termine del nome.
+:param threadObj: oggetto Thread relativo al log
+:param renameFiles: flag che rinomina il file con la data di inizio acquisizione se impostato a True
+:return: array contenente i nuovi nomi dei files</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.configure_ublox">
+<span class="sig-name descname"><span class="pre">configure_ublox</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.configure_ublox"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.configure_ublox" title="Permalink to this definition">¶</a></dt>
+<dd><p>Questa funzione configura il ricevitore inviando la richiesta di configurazione (per ciascuna configurazione) un massimo di 3 volte.
+Inizialmente configura il ricevitore inviando un UBX-CFG-CFG.
+Successivamente imposta il rate (1Hz di default)
+Successivamente richiede che il ricevitore invii messaggi di tipo CFG-RAW-RAWX e CFG-RAW-SFRBX.
+Poi disabilita tutti gli NMEA, ad eccezione del GGA.
+:param rate: velocità (1Hz di default)
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.deactivateLogger">
+<span class="sig-name descname"><span class="pre">deactivateLogger</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.deactivateLogger"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.deactivateLogger" title="Permalink to this definition">¶</a></dt>
+<dd><p>Procedura che disattiva la periferica e riporta l’esito nella console.
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.decode_ublox">
+<span class="sig-name descname"><span class="pre">decode_ublox</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.decode_ublox"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.decode_ublox" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione che decodifica il messaggio proveniente dall’ublox (bytes). Distingue NMEA o UBX e alla fine ritorna entrambi.
+:param msg: messaggio in bytes
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.in_waiting">
+<span class="sig-name descname"><span class="pre">in_waiting</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.in_waiting"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.in_waiting" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione che restituisce il numero di bytes nel buffer della periferica.
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.logData">
+<span class="sig-name descname"><span class="pre">logData</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.logData"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.logData" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione principale per l’acquisizioni dei dati. E’ la funzione che viene eseguita al lancio del thread. Nel dettaglio, configura la periferica salvandone lo stato e indicando i messaggi da ricevere (NMEA-GGA, UBX-RXM-RAWX, UBX-RXM-SFRBX, UBX-CFG-MSG, UBX-CFG-CFG).
+Successivamente si pone in ascolto ed elabora lo stream che riceve avvalendosi della funzione decode_ublox. Salva all’interno di files che vengono creati i risultati delle elaborazioni.
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.open_connection">
+<span class="sig-name descname"><span class="pre">open_connection</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.open_connection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.open_connection" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.printLog">
+<span class="sig-name descname"><span class="pre">printLog</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.printLog"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.printLog" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione che stampa a video nella console presente nella GUI il messaggio passato via parametro.
+:param msg: messaggio da stampare nella console.
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.read">
+<span class="sig-name descname"><span class="pre">read</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">howBytes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.read"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.read" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione che legge i bytes indicati come parametro.
+:param howBytes: quanti bytes leggere dal buffer.
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.send_message">
+<span class="sig-name descname"><span class="pre">send_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">messaggio</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">freeQueue</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jumpException</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.send_message"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.send_message" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione che invia un messaggio alla periferica liberando o meno la coda e ignorando o meno le possibili eccezioni.
+:param messaggio: messaggio in bytes da inviare
+:param freeQueue: booleano che indica se liberare o meno i bytes nel buffer di entrata
+:param jumpException: booleano che indica se restituire o meno eccezione in caso di errore
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.serial_close_connect">
+<span class="sig-name descname"><span class="pre">serial_close_connect</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.serial_close_connect"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.serial_close_connect" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione che chiude e riapre la connessione.
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.ublox_CFG_CFG">
+<span class="sig-name descname"><span class="pre">ublox_CFG_CFG</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">action</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.ublox_CFG_CFG"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.ublox_CFG_CFG" title="Permalink to this definition">¶</a></dt>
+<dd><p>Funzione che invia messaggi di tipo UBX-CFG-CFG allo scopo di configurare il ricevitore.
+:param action: indica il tipo di azione abbinata al messaggio (salvataggio della configurazione, caricamento della configurazione salvata, reset del dispositivo)
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.ublox_CFG_GNSS">
+<span class="sig-name descname"><span class="pre">ublox_CFG_GNSS</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gnssParams</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.ublox_CFG_GNSS"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.ublox_CFG_GNSS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Invia un messaggio UBX-CFG-GNSS attivando la ricezione di messaggi da quel determinato GNSS.
+:param gnssParams: informazioni GNSS
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.ublox_CFG_MSG">
+<span class="sig-name descname"><span class="pre">ublox_CFG_MSG</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cls</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.ublox_CFG_MSG"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.ublox_CFG_MSG" title="Permalink to this definition">¶</a></dt>
+<dd><p>Invia un messaggio UBX-CFG-MSG indicando (mode = 1 o 0) al ricevitore di inviare/bloccare l’invio di un messaggio con quella classe/id.
+:param cls: classe del messaggio
+:param id: identificativo del messaggio
+:param mode: modalità (1 per voler ricevere il messaggio, 0 per non riceverlo)
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.ublox_CFG_RATE">
+<span class="sig-name descname"><span class="pre">ublox_CFG_RATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">measRate</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">navRate</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeRef</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.ublox_CFG_RATE"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.ublox_CFG_RATE" title="Permalink to this definition">¶</a></dt>
+<dd><p>Invia un messaggio UBX-CFG-RATE, impostando measRate, navRate e timeRef.
+:param measRate: velocità misurazioni (in ms)
+:param navRate: velocità navigazione (in ms)
+:param timeRef: riferimento temporale
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.ublox_check_ACK">
+<span class="sig-name descname"><span class="pre">ublox_check_ACK</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cls</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">id</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.ublox_check_ACK"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.ublox_check_ACK" title="Permalink to this definition">¶</a></dt>
+<dd><p>Controlla che arrivi un ACK dopo una poll per un dato messaggio.
+:param cls: classe del messaggio
+:param id: id del messaggio
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.Logger.Logger.ublox_poll_message">
+<span class="sig-name descname"><span class="pre">ublox_poll_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ClassLab</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MsgIDLab</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">payload_length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Logger.html#Logger.ublox_poll_message"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Logger.Logger.ublox_poll_message" title="Permalink to this definition">¶</a></dt>
+<dd><p>Invia la richiesta di messaggio al ricevitore.
+:param ClassLab: classe del messaggio richiesto
+:param MsgIDLab: id del messaggio richiesto
+:param payload_length: lunghezza del payload
+:param parameter: eventuali parametri (0 per default)
+:return:</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-modules.SerialParser">
+<span id="modules-serialparser-module"></span><h2>modules.SerialParser module<a class="headerlink" href="#module-modules.SerialParser" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="modules.SerialParser.SerialParser">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">modules.SerialParser.</span></span><span class="sig-name descname"><span class="pre">SerialParser</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mainWindow</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">port</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">baudRate</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/SerialParser.html#SerialParser"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.SerialParser.SerialParser" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Serial</span></code></p>
+<p>Classe che gestisce l’interazione con la porta seriale COM.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.SerialParser.SerialParser.error_n_die">
+<span class="sig-name descname"><span class="pre">error_n_die</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/SerialParser.html#SerialParser.error_n_die"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.SerialParser.SerialParser.error_n_die" title="Permalink to this definition">¶</a></dt>
+<dd><p>Stampa a video eventuali errori dovuti a chiusure improvvise della porta.
+:return:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.SerialParser.SerialParser.reconnect">
+<span class="sig-name descname"><span class="pre">reconnect</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/SerialParser.html#SerialParser.reconnect"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.SerialParser.SerialParser.reconnect" title="Permalink to this definition">¶</a></dt>
+<dd><p>Effettua la riconnessione al dispositivo reinizializzando l’oggetto.
+:return:</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-modules.ThreadWithReturn">
+<span id="modules-threadwithreturn-module"></span><h2>modules.ThreadWithReturn module<a class="headerlink" href="#module-modules.ThreadWithReturn" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="modules.ThreadWithReturn.ThreadWithReturn">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">modules.ThreadWithReturn.</span></span><span class="sig-name descname"><span class="pre">ThreadWithReturn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Thread</span></code></p>
+<p>Classe che estende la classe Thread. Crea un Thread indicando una funzione target passata come argomento del costruttore.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.ThreadWithReturn.ThreadWithReturn.join">
+<span class="sig-name descname"><span class="pre">join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn.join"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn.join" title="Permalink to this definition">¶</a></dt>
 <dd><p># Chiamata al join padre
 :param args:
 :param kwargs:
 :return:</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="modules.ThreadWithReturn.ThreadWithReturn.run">
-<code class="descname">run</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn.run" title="Permalink to this definition">¶</a></dt>
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.ThreadWithReturn.ThreadWithReturn.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn.run" title="Permalink to this definition">¶</a></dt>
 <dd><p>override del metodo run(), necessario perché run chiama solo la funzione target.
 :return:</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="modules.ThreadWithReturn.ThreadWithReturn.stop">
-<code class="descname">stop</code><span class="sig-paren">(</span><em>nameTS</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn.stop"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn.stop" title="Permalink to this definition">¶</a></dt>
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.ThreadWithReturn.ThreadWithReturn.stop">
+<span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nameTS</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/ThreadWithReturn.html#ThreadWithReturn.stop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.ThreadWithReturn.ThreadWithReturn.stop" title="Permalink to this definition">¶</a></dt>
 <dd><p>Variazione dell’attributo running per l’interruzione forzata del thread.
-:param nameTS: data e ora dell’acquisizione da aggiungere al nome del file quando l’acquisizione termina.
+:param nameTS: data e ora dell’acquisizioni da aggiungere al nome del file quando l’acquisizioni termina.
 :return:</p>
 </dd></dl>
 
 </dd></dl>
 
-<span class="target" id="module-modules.UBXMessage"></span><dl class="class">
-<dt id="modules.UBXMessage.UBXMessage">
-<em class="property">class </em><code class="descclassname">modules.UBXMessage.</code><code class="descname">UBXMessage</code><span class="sig-paren">(</span><em>classId: str</em>, <em>msgId: str</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage" title="Permalink to this definition">¶</a></dt>
-<dd><p>Classe che permette l’assemblaggio di un messaggio UBX.</p>
-<dl class="method">
-<dt id="modules.UBXMessage.UBXMessage.aggiungiByte">
-<code class="descname">aggiungiByte</code><span class="sig-paren">(</span><em>valore</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.aggiungiByte"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.aggiungiByte" title="Permalink to this definition">¶</a></dt>
+</section>
+<section id="module-modules.UBXCodes">
+<span id="modules-ubxcodes-module"></span><h2>modules.UBXCodes module<a class="headerlink" href="#module-modules.UBXCodes" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.UBXCodes.ublox_UBX_codes">
+<span class="sig-prename descclassname"><span class="pre">modules.UBXCodes.</span></span><span class="sig-name descname"><span class="pre">ublox_UBX_codes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">classIn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idIn</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXCodes.html#ublox_UBX_codes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.UBXCodes.ublox_UBX_codes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Restituisce l’intestazione del messaggio dato classe e id.
+:param classIn:
+:param idIn:
+:return:</p>
+</dd></dl>
+
+</section>
+<section id="module-modules.UBXMessage">
+<span id="modules-ubxmessage-module"></span><h2>modules.UBXMessage module<a class="headerlink" href="#module-modules.UBXMessage" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="modules.UBXMessage.UBXMessage">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">modules.UBXMessage.</span></span><span class="sig-name descname"><span class="pre">UBXMessage</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">classId</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">msgId</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Classe che permette l’assemblaggio di un messaggio UBX.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="modules.UBXMessage.UBXMessage.SYNC_CHAR_1">
+<span class="sig-name descname"><span class="pre">SYNC_CHAR_1</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">b'\xb5'</span></em><a class="headerlink" href="#modules.UBXMessage.UBXMessage.SYNC_CHAR_1" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="modules.UBXMessage.UBXMessage.SYNC_CHAR_2">
+<span class="sig-name descname"><span class="pre">SYNC_CHAR_2</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">b'b'</span></em><a class="headerlink" href="#modules.UBXMessage.UBXMessage.SYNC_CHAR_2" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.UBXMessage.UBXMessage.aggiungiByte">
+<span class="sig-name descname"><span class="pre">aggiungiByte</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">valore</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.aggiungiByte"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.aggiungiByte" title="Permalink to this definition">¶</a></dt>
 <dd><p>Aggiunge il byte passato come parametro al messaggio.
 :param valore:
 :return:</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="modules.UBXMessage.UBXMessage.aggiungiBytes">
-<code class="descname">aggiungiBytes</code><span class="sig-paren">(</span><em>valore</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.aggiungiBytes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.aggiungiBytes" title="Permalink to this definition">¶</a></dt>
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.UBXMessage.UBXMessage.aggiungiBytes">
+<span class="sig-name descname"><span class="pre">aggiungiBytes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">valore</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.aggiungiBytes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.aggiungiBytes" title="Permalink to this definition">¶</a></dt>
 <dd><p>Aggiunge un elenco di bytes passato come parametro al messaggio.
 :param valore:
 :return:</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="modules.UBXMessage.UBXMessage.calcola_checksum">
-<code class="descname">calcola_checksum</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.calcola_checksum"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.calcola_checksum" title="Permalink to this definition">¶</a></dt>
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.UBXMessage.UBXMessage.calcola_checksum">
+<span class="sig-name descname"><span class="pre">calcola_checksum</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.calcola_checksum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.calcola_checksum" title="Permalink to this definition">¶</a></dt>
 <dd><p>Funzione che calcola il checksum, secondo l’algoritmo indicato nel manuale UBX, ritornando i due bytes da appendere al messaggio.
 :return:</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="modules.UBXMessage.UBXMessage.getMessaggio">
-<code class="descname">getMessaggio</code><span class="sig-paren">(</span><em>toString=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.getMessaggio"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.getMessaggio" title="Permalink to this definition">¶</a></dt>
+<dl class="py method">
+<dt class="sig sig-object py" id="modules.UBXMessage.UBXMessage.getMessaggio">
+<span class="sig-name descname"><span class="pre">getMessaggio</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">toString</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXMessage.html#UBXMessage.getMessaggio"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.UBXMessage.UBXMessage.getMessaggio" title="Permalink to this definition">¶</a></dt>
 <dd><p>Ritorna il messaggio in formato stringa o come array di byte.
 :param toString:
 :return:</p>
@@ -111,66 +353,60 @@
 
 </dd></dl>
 
-<span class="target" id="module-modules.UBXCodes"></span><dl class="function">
-<dt id="modules.UBXCodes.ublox_UBX_codes">
-<code class="descclassname">modules.UBXCodes.</code><code class="descname">ublox_UBX_codes</code><span class="sig-paren">(</span><em>classIn</em>, <em>idIn</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/UBXCodes.html#ublox_UBX_codes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.UBXCodes.ublox_UBX_codes" title="Permalink to this definition">¶</a></dt>
-<dd><p>Restituisce l’intestazione del messaggio dato classe e id.
-:param classIn:
-:param idIn:
-:return:</p>
-</dd></dl>
-
-<span class="target" id="module-modules.Utils"></span><dl class="function">
-<dt id="modules.Utils.decode_NAV_TIMEBDS">
-<code class="descclassname">modules.Utils.</code><code class="descname">decode_NAV_TIMEBDS</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEBDS"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEBDS" title="Permalink to this definition">¶</a></dt>
+</section>
+<section id="module-modules.Utils">
+<span id="modules-utils-module"></span><h2>modules.Utils module<a class="headerlink" href="#module-modules.Utils" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.decode_NAV_TIMEBDS">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">decode_NAV_TIMEBDS</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEBDS"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEBDS" title="Permalink to this definition">¶</a></dt>
 <dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-NAV-TIMEBDS
 :param msg:
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.decode_NAV_TIMEGAL">
-<code class="descclassname">modules.Utils.</code><code class="descname">decode_NAV_TIMEGAL</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEGAL"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEGAL" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.decode_NAV_TIMEGAL">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">decode_NAV_TIMEGAL</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEGAL"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEGAL" title="Permalink to this definition">¶</a></dt>
 <dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-NAV-TIMEGAL
 :param msg:
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.decode_NAV_TIMEGLO">
-<code class="descclassname">modules.Utils.</code><code class="descname">decode_NAV_TIMEGLO</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEGLO"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEGLO" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.decode_NAV_TIMEGLO">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">decode_NAV_TIMEGLO</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEGLO"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEGLO" title="Permalink to this definition">¶</a></dt>
 <dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-NAV-TIMEGLO
 :param msg:
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.decode_NAV_TIMEGPS">
-<code class="descclassname">modules.Utils.</code><code class="descname">decode_NAV_TIMEGPS</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEGPS"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEGPS" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.decode_NAV_TIMEGPS">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">decode_NAV_TIMEGPS</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEGPS"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEGPS" title="Permalink to this definition">¶</a></dt>
 <dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-NAV-TIMEGPS
 :param msg:
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.decode_NAV_TIMEUTC">
-<code class="descclassname">modules.Utils.</code><code class="descname">decode_NAV_TIMEUTC</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEUTC"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEUTC" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.decode_NAV_TIMEUTC">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">decode_NAV_TIMEUTC</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_NAV_TIMEUTC"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.decode_NAV_TIMEUTC" title="Permalink to this definition">¶</a></dt>
 <dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-NAV-TIMEUTC
 :param msg:
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.decode_RXM_RAWX">
-<code class="descclassname">modules.Utils.</code><code class="descname">decode_RXM_RAWX</code><span class="sig-paren">(</span><em>msg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_RXM_RAWX"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.decode_RXM_RAWX" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.decode_RXM_RAWX">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">decode_RXM_RAWX</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#decode_RXM_RAWX"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.decode_RXM_RAWX" title="Permalink to this definition">¶</a></dt>
 <dd><p>Ritorna l’oggetto json decodificando il messaggio UBX-RXM-RAWX
 :param msg:
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.find">
-<code class="descclassname">modules.Utils.</code><code class="descname">find</code><span class="sig-paren">(</span><em>elements</em>, <em>greaterThan</em>, <em>topK</em>, <em>equals=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#find"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.find" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.find">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">find</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">elements</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">greaterThan</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topK</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">equals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#find"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.find" title="Permalink to this definition">¶</a></dt>
 <dd><p>Funzione che ricerca i primi topK elementi maggiori/uguali di un dato elemento all’interno di una collezione di elementi.
 :param elements: collezione di elementi
 :param greaterThan: elemento soglia
@@ -179,25 +415,25 @@
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.ieee754double">
-<code class="descclassname">modules.Utils.</code><code class="descname">ieee754double</code><span class="sig-paren">(</span><em>bits</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#ieee754double"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.ieee754double" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.ieee754double">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">ieee754double</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bits</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#ieee754double"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.ieee754double" title="Permalink to this definition">¶</a></dt>
 <dd><p>Ritorna la cifra reale dati 64 bit seguendo lo standard IEEE754.
 :param bits:
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.ieee754single">
-<code class="descclassname">modules.Utils.</code><code class="descname">ieee754single</code><span class="sig-paren">(</span><em>bits</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#ieee754single"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.ieee754single" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.ieee754single">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">ieee754single</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bits</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#ieee754single"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.ieee754single" title="Permalink to this definition">¶</a></dt>
 <dd><p>Ritorna la cifra reale dati 32 bit seguendo lo standard IEEE754.
 :param bits:
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.ismember">
-<code class="descclassname">modules.Utils.</code><code class="descname">ismember</code><span class="sig-paren">(</span><em>A: list</em>, <em>B: list</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#ismember"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.ismember" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.ismember">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">ismember</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">B</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#ismember"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.ismember" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns an array of size A. If elements of A is contained in B returns True for that element, otherwise False.
 You can control all the elements are False by using not any(ismember(A,B))
 :param A:
@@ -205,40 +441,45 @@ You can control all the elements are False by using not any(ismember(A,B))
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.msg2bits">
-<code class="descclassname">modules.Utils.</code><code class="descname">msg2bits</code><span class="sig-paren">(</span><em>msgBytes: list</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#msg2bits"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.msg2bits" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.msg2bits">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">msg2bits</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msgBytes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#msg2bits"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.msg2bits" title="Permalink to this definition">¶</a></dt>
 <dd><p>Funzione che codifica ciascun byte presente nell’array “msgBytes” nel corrispettivo bit, ritornando una lista di bit.
 :param msgBytes:
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.splitBytes">
-<code class="descclassname">modules.Utils.</code><code class="descname">splitBytes</code><span class="sig-paren">(</span><em>stream: bytes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#splitBytes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.splitBytes" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.splitBytes">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">splitBytes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stream</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bytes</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#splitBytes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.splitBytes" title="Permalink to this definition">¶</a></dt>
 <dd><p>Riceve uno stream di bytes e crea un array contenente ciascun byte in ciascuna posizione.
 :param stream:
 :return:</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="modules.Utils.strfind">
-<code class="descclassname">modules.Utils.</code><code class="descname">strfind</code><span class="sig-paren">(</span><em>what: bytes</em>, <em>where: bytes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#strfind"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#modules.Utils.strfind" title="Permalink to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="modules.Utils.strfind">
+<span class="sig-prename descclassname"><span class="pre">modules.Utils.</span></span><span class="sig-name descname"><span class="pre">strfind</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">what</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bytes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">where</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bytes</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/modules/Utils.html#strfind"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#modules.Utils.strfind" title="Permalink to this definition">¶</a></dt>
 <dd><p>Funzione che trova la stringa “what” nella stringa “where” e restituisce un array di corrispondenze.
 :param what:
 :param where:
 :return:</p>
 </dd></dl>
 
-</div>
+</section>
+<section id="module-modules">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-modules" title="Permalink to this heading">¶</a></h2>
+</section>
+</section>
 
 
           </div>
+          
         </div>
       </div>
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
         <div class="sphinxsidebarwrapper">
-<h1 class="logo"><a href="index.html">GPSDataLoggerParser</a></h1>
+<h1 class="logo"><a href="index.html">GNSS DataLogger and Parser Documentation</a></h1>
 
 
 
@@ -248,26 +489,49 @@ You can control all the elements are False by using not any(ismember(A,B))
 
 
 <h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">modules package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-modules.BackendHandler">modules.BackendHandler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-modules.GNSS">modules.GNSS module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-modules.Logger">modules.Logger module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-modules.SerialParser">modules.SerialParser module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-modules.ThreadWithReturn">modules.ThreadWithReturn module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-modules.UBXCodes">modules.UBXCodes module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-modules.UBXMessage">modules.UBXMessage module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-modules.Utils">modules.Utils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-modules">Module contents</a></li>
+</ul>
+</li>
+</ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Welcome to GNSSDataLoggerAndParser Documentation’s documentation!</a></li>
   </ul></li>
 </ul>
 </div>
 <div id="searchbox" style="display: none" role="search">
-  <h3>Quick search</h3>
+  <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
     <form class="search" action="search.html" method="get">
-      <input type="text" name="q" />
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
       <input type="submit" value="Go" />
-      <input type="hidden" name="check_keywords" value="yes" />
-      <input type="hidden" name="area" value="default" />
     </form>
     </div>
 </div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
         </div>
       </div>
       <div class="clearer"></div>
@@ -276,8 +540,8 @@ You can control all the elements are False by using not any(ismember(A,B))
       &copy;2023, Luca Padalino.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.5</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 6.1.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
       
       |
       <a href="_sources/modules.rst.txt"

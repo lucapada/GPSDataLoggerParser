@@ -1,26 +1,78 @@
-Code Documentation
-==================
+modules package
+===============
 
-.. automodule:: main
-    :members:
+Submodules
+----------
+
+modules.BackendHandler module
+-----------------------------
 
 .. automodule:: modules.BackendHandler
     :members:
+    :undoc-members:
+    :show-inheritance:
+
+modules.GNSS module
+-------------------
+
+.. automodule:: modules.GNSS
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+modules.Logger module
+---------------------
 
 .. automodule:: modules.Logger
     :members:
+    :undoc-members:
+    :show-inheritance:
+
+modules.SerialParser module
+---------------------------
 
 .. automodule:: modules.SerialParser
     :members:
+    :undoc-members:
+    :show-inheritance:
+
+modules.ThreadWithReturn module
+-------------------------------
 
 .. automodule:: modules.ThreadWithReturn
     :members:
+    :undoc-members:
+    :show-inheritance:
 
-.. automodule:: modules.UBXMessage
-    :members:
+modules.UBXCodes module
+-----------------------
 
 .. automodule:: modules.UBXCodes
     :members:
+    :undoc-members:
+    :show-inheritance:
+
+modules.UBXMessage module
+-------------------------
+
+.. automodule:: modules.UBXMessage
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+modules.Utils module
+--------------------
 
 .. automodule:: modules.Utils
     :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: modules
+    :members:
+    :undoc-members:
+    :show-inheritance:

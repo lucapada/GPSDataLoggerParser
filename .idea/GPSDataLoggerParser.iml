@@ -3,10 +3,12 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/venv" />
+      <excludeFolder url="file://$MODULE_DIR$/venv_new" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.8 (GPSDataLoggerParser) (2)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="module" module-name="gnss-nav-py-main" />
-    <orderEntry type="module" module-name="AlgoritmiOrdinamento" />
+  </component>
+  <component name="ReSTService">
+    <option name="DOC_DIR" value="$MODULE_DIR$/docs" />
   </component>
 </module>

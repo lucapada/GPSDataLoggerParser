@@ -1,0 +1,960 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>main &#8212; GNSS DataLogger and Parser Documentation 1.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css" />
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/sphinx_highlight.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for main</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+
+<span class="kn">import</span> <span class="nn">serial</span>
+<span class="kn">from</span> <span class="nn">PyQt5.QtGui</span> <span class="kn">import</span> <span class="n">QStandardItemModel</span><span class="p">,</span> <span class="n">QStandardItem</span>
+<span class="kn">from</span> <span class="nn">PyQt5.QtWidgets</span> <span class="kn">import</span> <span class="n">QApplication</span><span class="p">,</span> <span class="n">QMainWindow</span><span class="p">,</span> <span class="n">QFileDialog</span>
+
+<span class="kn">from</span> <span class="nn">modules.BackendHandler</span> <span class="kn">import</span> <span class="n">Handler</span>
+<span class="kn">from</span> <span class="nn">modules.UBXMessage</span> <span class="kn">import</span> <span class="n">UBXMessage</span>
+<span class="kn">from</span> <span class="nn">modules.Utils</span> <span class="kn">import</span> <span class="n">msg2bits</span><span class="p">,</span> <span class="n">splitBytes</span><span class="p">,</span> <span class="n">strfind</span><span class="p">,</span> <span class="n">find</span><span class="p">,</span> <span class="n">decode_RXM_RAWX</span>
+
+<span class="c1"># RTKLib tool configuration for both unix and windowsnt</span>
+<span class="c1"># from WindowsNT</span>
+<span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;nt&#39;</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">serial.tools.list_ports_windows</span> <span class="kn">import</span> <span class="n">comports</span>
+    <span class="n">rtklibPath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;/RTKLIB-master/bin/&quot;</span>
+    <span class="n">rtklibConvbin</span> <span class="o">=</span> <span class="n">rtklibPath</span> <span class="o">+</span> <span class="s2">&quot;convbin.exe&quot;</span>
+<span class="c1"># Mac &amp; Linux are POSIX compliant (UNIX like systems)</span>
+<span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;posix&#39;</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">serial.tools.list_ports_posix</span> <span class="kn">import</span> <span class="n">comports</span>
+    <span class="n">rtklibPath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;/RTKLIB-master/app/convbin/gcc/&quot;</span>
+    <span class="n">rtklibConvbin</span> <span class="o">=</span> <span class="n">rtklibPath</span> <span class="o">+</span> <span class="s2">&quot;convbin&quot;</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s2">&quot;OS Platform not properly detected&quot;</span><span class="p">)</span>
+
+<span class="n">BAUDRATES</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;9600&#39;</span><span class="p">,</span> <span class="s1">&#39;57600&#39;</span><span class="p">]</span>
+<span class="n">CONSTELLATIONS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;GPS&quot;</span><span class="p">,</span><span class="s2">&quot;SBAS&quot;</span><span class="p">,</span><span class="s2">&quot;Galileo&quot;</span><span class="p">,</span><span class="s2">&quot;BeiDou&quot;</span><span class="p">,</span><span class="s2">&quot;IMES&quot;</span><span class="p">,</span><span class="s2">&quot;QZSS&quot;</span><span class="p">,</span><span class="s2">&quot;GLONASS&quot;</span><span class="p">]</span>
+
+<span class="c1"># PARAMS to Configure</span>
+<span class="n">TIMEOUT</span> <span class="o">=</span> <span class="mi">10</span>
+
+<span class="kn">from</span> <span class="nn">PyQt5</span> <span class="kn">import</span> <span class="n">QtCore</span><span class="p">,</span> <span class="n">QtGui</span><span class="p">,</span> <span class="n">QtWidgets</span>
+
+<div class="viewcode-block" id="Ui_MainWindow"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow">[docs]</a><span class="k">class</span> <span class="nc">Ui_MainWindow</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Classe che inizializza la GUI.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">MainWindow</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Configura la UI preparando gli elementi grafici, bloccandoli e riempendoli.</span>
+<span class="sd">        :param MainWindow: finestra in cui lavorare</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">HANDLERS</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTED_PORTS</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">MainWindow</span> <span class="o">=</span> <span class="n">MainWindow</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setupUi</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">MainWindow</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+        <span class="c1"># blocco tutto</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sourcesGroupBox</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexGroupBox</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="c1"># aggiungo i baudrates</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">BAUDRATES</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="o">.</span><span class="n">addItem</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+
+        <span class="c1"># aggiungo le costellazioni</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">modelCostellazioni</span> <span class="o">=</span> <span class="n">QStandardItemModel</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">CONSTELLATIONS</span><span class="p">)):</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="n">QStandardItem</span><span class="p">(</span><span class="n">CONSTELLATIONS</span><span class="p">[</span><span class="n">c</span><span class="p">])</span>
+            <span class="n">item</span><span class="o">.</span><span class="n">setCheckable</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">checked</span> <span class="o">=</span> <span class="kc">False</span> <span class="c1"># di default non sono selezionati</span>
+            <span class="n">check</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Checked</span> <span class="k">if</span> <span class="n">checked</span> <span class="k">else</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Unchecked</span>
+            <span class="n">item</span><span class="o">.</span><span class="n">setCheckState</span><span class="p">(</span><span class="n">check</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">modelCostellazioni</span><span class="o">.</span><span class="n">appendRow</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">constellationsListView</span><span class="o">.</span><span class="n">setModel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">modelCostellazioni</span><span class="p">)</span>
+
+        <span class="c1"># seleziono &quot;Serial Port&quot; come default tab</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabWidget</span><span class="o">.</span><span class="n">setCurrentIndex</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># handle events</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnChooseUBXPath</span><span class="o">.</span><span class="n">clicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chooseFolder</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnDiscoverUBXDevices</span><span class="o">.</span><span class="n">clicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">discoverDevices</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span><span class="o">.</span><span class="n">clicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">recordUBXs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span><span class="o">.</span><span class="n">clicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stopUBXs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ubxDevicesListView</span><span class="o">.</span><span class="n">clicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">toggleUBXControl</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRunRINEX</span><span class="o">.</span><span class="n">clicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">startRinex</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnAddFile</span><span class="o">.</span><span class="n">clicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loadFiles</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRemoveSelectedFile</span><span class="o">.</span><span class="n">clicked</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">removeFiles</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">recordTS</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+<div class="viewcode-block" id="Ui_MainWindow.setupUi"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.setupUi">[docs]</a>    <span class="k">def</span> <span class="nf">setupUi</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo che costruisce gli elementi aggiungendoli ai vari elementi contenitori. Aggiunge i contenitori alla GUI.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">MainWindow</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">MainWindow</span>
+        <span class="n">MainWindow</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">)</span>
+        <span class="n">MainWindow</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="mi">1023</span><span class="p">,</span> <span class="mi">589</span><span class="p">)</span>
+        <span class="n">MainWindow</span><span class="o">.</span><span class="n">setContextMenuPolicy</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">NoContextMenu</span><span class="p">)</span>
+        <span class="n">MainWindow</span><span class="o">.</span><span class="n">setStatusTip</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">centralwidget</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QWidget</span><span class="p">(</span><span class="n">MainWindow</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">centralwidget</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;centralwidget&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_13</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centralwidget</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_13</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_13&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_12</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_12</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_12&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_5</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_5</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_5&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QLabel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centralwidget</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="o">.</span><span class="n">setAlignment</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">AlignRight</span><span class="o">|</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">AlignTrailing</span><span class="o">|</span><span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">AlignVCenter</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;label&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_5</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QLineEdit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centralwidget</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="o">.</span><span class="n">setReadOnly</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;txtUBXPath&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_5</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnChooseUBXPath</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QPushButton</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centralwidget</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnChooseUBXPath</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;btnChooseUBXPath&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_5</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">btnChooseUBXPath</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_12</span><span class="o">.</span><span class="n">addLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_5</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groupBox</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGroupBox</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centralwidget</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groupBox</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;groupBox&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_11</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">groupBox</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_11</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_11&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">txtLogs</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QTextEdit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">groupBox</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">txtLogs</span><span class="o">.</span><span class="n">setReadOnly</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">txtLogs</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;txtLogs&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_11</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">txtLogs</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_12</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">groupBox</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sourcesGroupBox</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGroupBox</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centralwidget</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sourcesGroupBox</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;sourcesGroupBox&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_4</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcesGroupBox</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_4</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_4&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabWidget</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QTabWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcesGroupBox</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabWidget</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;tabWidget&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tab</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QWidget</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tab</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;tab&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_3</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_3</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_3&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ubxDevicesListView</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QListView</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ubxDevicesListView</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;ubxDevicesListView&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ubxDevicesListView</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnDiscoverUBXDevices</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QPushButton</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab</span><span class="p">)</span>
+        <span class="n">font</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFont</span><span class="p">()</span>
+        <span class="n">font</span><span class="o">.</span><span class="n">setStrikeOut</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">font</span><span class="o">.</span><span class="n">setKerning</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnDiscoverUBXDevices</span><span class="o">.</span><span class="n">setFont</span><span class="p">(</span><span class="n">font</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnDiscoverUBXDevices</span><span class="o">.</span><span class="n">setAcceptDrops</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnDiscoverUBXDevices</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;btnDiscoverUBXDevices&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">btnDiscoverUBXDevices</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label_3</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QLabel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label_3</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;label_3&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">label_3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QComboBox</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;cmbBaudRateUBX&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="c1">#self.chkStartRecordingOnConnection = QtWidgets.QCheckBox(self.tab)</span>
+        <span class="n">font</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFont</span><span class="p">()</span>
+        <span class="n">font</span><span class="o">.</span><span class="n">setPointSize</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+        <span class="c1">#self.chkStartRecordingOnConnection.setFont(font)</span>
+        <span class="c1">#self.chkStartRecordingOnConnection.setObjectName(&quot;chkStartRecordingOnConnection&quot;)</span>
+        <span class="c1">#self.gridLayout.addWidget(self.chkStartRecordingOnConnection, 2, 1, 1, 2)</span>
+        <span class="c1">#self.btnStartUBXDevicesConnection = QtWidgets.QPushButton(self.tab)</span>
+        <span class="c1">#self.btnStartUBXDevicesConnection.setObjectName(&quot;btnStartUBXDevicesConnection&quot;)</span>
+        <span class="c1">#self.gridLayout.addWidget(self.btnStartUBXDevicesConnection, 2, 3, 1, 1)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QPushButton</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;btnRecordUBX&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QPushButton</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;btnStopUBX&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_3</span><span class="o">.</span><span class="n">addLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gridLayout</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabWidget</span><span class="o">.</span><span class="n">addTab</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tab_2</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QWidget</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tab_2</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;tab_2&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_14</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab_2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_14</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_14&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_2</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_2</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_2&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filesListView</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QListView</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab_2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filesListView</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;filesListView&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_2</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filesListView</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnAddFile</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QPushButton</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab_2</span><span class="p">)</span>
+        <span class="n">font</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFont</span><span class="p">()</span>
+        <span class="n">font</span><span class="o">.</span><span class="n">setStrikeOut</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">font</span><span class="o">.</span><span class="n">setKerning</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnAddFile</span><span class="o">.</span><span class="n">setFont</span><span class="p">(</span><span class="n">font</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnAddFile</span><span class="o">.</span><span class="n">setAcceptDrops</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnAddFile</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;btnAddFile&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_2</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">btnAddFile</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRemoveSelectedFile</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QPushButton</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab_2</span><span class="p">)</span>
+        <span class="n">font</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFont</span><span class="p">()</span>
+        <span class="n">font</span><span class="o">.</span><span class="n">setPointSize</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>
+        <span class="n">font</span><span class="o">.</span><span class="n">setStrikeOut</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">font</span><span class="o">.</span><span class="n">setKerning</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRemoveSelectedFile</span><span class="o">.</span><span class="n">setFont</span><span class="p">(</span><span class="n">font</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRemoveSelectedFile</span><span class="o">.</span><span class="n">setAcceptDrops</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRemoveSelectedFile</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;btnRemoveSelectedFile&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_2</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">btnRemoveSelectedFile</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_14</span><span class="o">.</span><span class="n">addLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabWidget</span><span class="o">.</span><span class="n">addTab</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab_2</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_4</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tabWidget</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_12</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sourcesGroupBox</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groupBox_3</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGroupBox</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centralwidget</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groupBox_3</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;groupBox_3&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_10</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">groupBox_3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_10</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_10&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">constellationsListView</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QListView</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">groupBox_3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">constellationsListView</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;constellationsListView&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_10</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">constellationsListView</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_12</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">groupBox_3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexGroupBox</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGroupBox</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centralwidget</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexGroupBox</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;rinexGroupBox&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_9</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rinexGroupBox</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_9</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_9&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_8</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_8</span><span class="o">.</span><span class="n">setVerticalSpacing</span><span class="p">(</span><span class="mi">40</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_8</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_8&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groupBox_4</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGroupBox</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rinexGroupBox</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groupBox_4</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;groupBox_4&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_7</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">groupBox_4</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_7</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_7&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_6</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QGridLayout</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_6</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;gridLayout_6&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion212_radio</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QRadioButton</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">groupBox_4</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion212_radio</span><span class="o">.</span><span class="n">setChecked</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion212_radio</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;rinexVersion212_radio&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_6</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion212_radio</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion302_radio</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QRadioButton</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">groupBox_4</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion302_radio</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;rinexVersion302_radio&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_6</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion302_radio</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_7</span><span class="o">.</span><span class="n">addLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_6</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_8</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">groupBox_4</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRunRINEX</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QPushButton</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rinexGroupBox</span><span class="p">)</span>
+        <span class="n">sizePolicy</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QSizePolicy</span><span class="p">(</span><span class="n">QtWidgets</span><span class="o">.</span><span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Minimum</span><span class="p">,</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QSizePolicy</span><span class="o">.</span><span class="n">Fixed</span><span class="p">)</span>
+        <span class="n">sizePolicy</span><span class="o">.</span><span class="n">setHorizontalStretch</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">sizePolicy</span><span class="o">.</span><span class="n">setVerticalStretch</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">sizePolicy</span><span class="o">.</span><span class="n">setHeightForWidth</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">btnRunRINEX</span><span class="o">.</span><span class="n">sizePolicy</span><span class="p">()</span><span class="o">.</span><span class="n">hasHeightForWidth</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRunRINEX</span><span class="o">.</span><span class="n">setSizePolicy</span><span class="p">(</span><span class="n">sizePolicy</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRunRINEX</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;btnRunRINEX&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_8</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">btnRunRINEX</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chkSplitRinexNav</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QCheckBox</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rinexGroupBox</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chkSplitRinexNav</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;chkSplitRinexNav&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_8</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chkSplitRinexNav</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_9</span><span class="o">.</span><span class="n">addLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_8</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_12</span><span class="o">.</span><span class="n">addWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rinexGroupBox</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_13</span><span class="o">.</span><span class="n">addLayout</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gridLayout_12</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">MainWindow</span><span class="o">.</span><span class="n">setCentralWidget</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">centralwidget</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">menubar</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QMenuBar</span><span class="p">(</span><span class="n">MainWindow</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">menubar</span><span class="o">.</span><span class="n">setGeometry</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QRect</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1023</span><span class="p">,</span> <span class="mi">20</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">menubar</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;menubar&quot;</span><span class="p">)</span>
+        <span class="n">MainWindow</span><span class="o">.</span><span class="n">setMenuBar</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">menubar</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">statusbar</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QStatusBar</span><span class="p">(</span><span class="n">MainWindow</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">statusbar</span><span class="o">.</span><span class="n">setObjectName</span><span class="p">(</span><span class="s2">&quot;statusbar&quot;</span><span class="p">)</span>
+        <span class="n">MainWindow</span><span class="o">.</span><span class="n">setStatusBar</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">statusbar</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">retranslateUi</span><span class="p">(</span><span class="n">MainWindow</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabWidget</span><span class="o">.</span><span class="n">setCurrentIndex</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">QtCore</span><span class="o">.</span><span class="n">QMetaObject</span><span class="o">.</span><span class="n">connectSlotsByName</span><span class="p">(</span><span class="n">MainWindow</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="Ui_MainWindow.retranslateUi"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.retranslateUi">[docs]</a>    <span class="k">def</span> <span class="nf">retranslateUi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">MainWindow</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo che imposta le stringhe relative ai testi e titoli dei vari elementi creati.</span>
+<span class="sd">        :param MainWindow:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">_translate</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">QCoreApplication</span><span class="o">.</span><span class="n">translate</span>
+        <span class="n">MainWindow</span><span class="o">.</span><span class="n">setWindowTitle</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;GPSDataLoggerParser&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;NMEA and RINEX</span><span class="se">\n</span><span class="s2">output path:&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="o">.</span><span class="n">setPlaceholderText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;press </span><span class="se">\&quot;</span><span class="s2">Choose</span><span class="se">\&quot;</span><span class="s2"> button to select the path where to save collected datas&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnChooseUBXPath</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Choose&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groupBox</span><span class="o">.</span><span class="n">setTitle</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Messages and Logs&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sourcesGroupBox</span><span class="o">.</span><span class="n">setTitle</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Sources&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnDiscoverUBXDevices</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Discover Devices&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label_3</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Baud Rate:&quot;</span><span class="p">))</span>
+        <span class="c1">#self.chkStartRecordingOnConnection.setText(_translate(&quot;MainWindow&quot;, &quot;Start Recording\non Connection&quot;))</span>
+        <span class="c1">#self.btnStartUBXDevicesConnection.setText(_translate(&quot;MainWindow&quot;, &quot;Connect&quot;))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Record&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Stop&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabWidget</span><span class="o">.</span><span class="n">setTabText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tabWidget</span><span class="o">.</span><span class="n">indexOf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab</span><span class="p">),</span> <span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Serial Port&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnAddFile</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Add File(s)&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRemoveSelectedFile</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Remove Selected Files&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabWidget</span><span class="o">.</span><span class="n">setTabText</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tabWidget</span><span class="o">.</span><span class="n">indexOf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tab_2</span><span class="p">),</span> <span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;UBX Files&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groupBox_3</span><span class="o">.</span><span class="n">setTitle</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;GNSS&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexGroupBox</span><span class="o">.</span><span class="n">setTitle</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;RINEX Conversion&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groupBox_4</span><span class="o">.</span><span class="n">setTitle</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;RINEX Version&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion212_radio</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;2.12&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion302_radio</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;3.02&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRunRINEX</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Run Conversion&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chkSplitRinexNav</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">_translate</span><span class="p">(</span><span class="s2">&quot;MainWindow&quot;</span><span class="p">,</span> <span class="s2">&quot;Split .nav in different files per constellation&quot;</span><span class="p">))</span></div>
+
+    <span class="c1"># EVENTS</span>
+<div class="viewcode-block" id="Ui_MainWindow.chooseFolder"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.chooseFolder">[docs]</a>    <span class="k">def</span> <span class="nf">chooseFolder</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo invocato su pressione del pulsante per la scelta della directory di lavoro.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># scelgo la cartella</span>
+        <span class="n">folder</span> <span class="o">=</span> <span class="n">QFileDialog</span><span class="o">.</span><span class="n">getExistingDirectory</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">MainWindow</span><span class="p">,</span> <span class="s2">&quot;Select Folder&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span>
+        <span class="c1"># sblocco il pannello dei devices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sourcesGroupBox</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># ma blocco il connect, record e lo stop</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Ui_MainWindow.discoverDevices"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.discoverDevices">[docs]</a>    <span class="k">def</span> <span class="nf">discoverDevices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo che ricerca gli ublox connessi alle porte COM e li aggiunge alla checklist.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">ports</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getPorts</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">QStandardItemModel</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">ports</span><span class="p">:</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="n">QStandardItem</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+            <span class="n">item</span><span class="o">.</span><span class="n">setCheckable</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">checked</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># di default non sono selezionati</span>
+            <span class="n">check</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Checked</span> <span class="k">if</span> <span class="n">checked</span> <span class="k">else</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Unchecked</span>
+            <span class="n">item</span><span class="o">.</span><span class="n">setCheckState</span><span class="p">(</span><span class="n">check</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">appendRow</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ubxDevicesListView</span><span class="o">.</span><span class="n">setModel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Ui_MainWindow.recordUBXs"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.recordUBXs">[docs]</a>    <span class="k">def</span> <span class="nf">recordUBXs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo che si occupa di avviare il processo di registrazione degli stream realtime e multithreading. Viene invocato su pressione del pulsante &quot;Record&quot;.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># salvo il timestamp attuale, così da nominare i files ed evitare duplicati</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recordTS</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y%m</span><span class="si">%d</span><span class="s2">_%H%M%S&quot;</span><span class="p">)</span>
+
+        <span class="n">new_GNSS</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;GPS&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;SBAS&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;Galileo&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;BeiDou&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;IMES&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;QZSS&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;GLONASS&quot;</span><span class="p">:</span> <span class="mi">0</span>
+        <span class="p">}</span>
+        <span class="n">enabledGNSS</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">modelCostellazioni</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">modelCostellazioni</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">checkState</span><span class="p">()</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Checked</span><span class="p">:</span>
+                <span class="n">new_GNSS</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">modelCostellazioni</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">()]</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="n">enabledGNSS</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">new_GNSS</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">modelCostellazioni</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">()]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="n">enabledGNSS</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># faccio partire la registrazione dello stream.</span>
+            <span class="c1"># blocco la possibilità di scegliere le costellazioni e i dispositivi e abilito il pulsante di stop</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">btnDiscoverUBXDevices</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">constellationsListView</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ubxDevicesListView</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+
+            <span class="n">weekField</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">qm</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QMessageBox</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">qm</span><span class="o">.</span><span class="n">question</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">MainWindow</span><span class="p">,</span> <span class="s2">&quot;[UBX-RXM-RAWX] &#39;week&#39; field&quot;</span><span class="p">,</span> <span class="s2">&quot;Do you want to have GPS week number in receiver local time reported in the UBX/PC time sync file?&quot;</span><span class="p">,</span>
+                            <span class="n">qm</span><span class="o">.</span><span class="n">Yes</span> <span class="o">|</span> <span class="n">qm</span><span class="o">.</span><span class="n">No</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">r</span> <span class="o">==</span> <span class="n">qm</span><span class="o">.</span><span class="n">Yes</span><span class="p">:</span>
+                <span class="n">weekField</span> <span class="o">=</span> <span class="kc">True</span>
+
+            <span class="n">leapSField</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">qm</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QMessageBox</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">qm</span><span class="o">.</span><span class="n">question</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">MainWindow</span><span class="p">,</span> <span class="s2">&quot;[UBX-RXM-RAWX] &#39;leapS&#39; field&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;Do you want to have GPS leap seconds (GPS-UTC) reported in the UBX/PC time sync file?&quot;</span><span class="p">,</span>
+                            <span class="n">qm</span><span class="o">.</span><span class="n">Yes</span> <span class="o">|</span> <span class="n">qm</span><span class="o">.</span><span class="n">No</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">r</span> <span class="o">==</span> <span class="n">qm</span><span class="o">.</span><span class="n">Yes</span><span class="p">:</span>
+                <span class="n">leapSField</span> <span class="o">=</span> <span class="kc">True</span>
+
+            <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">checkState</span><span class="p">()</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Checked</span><span class="p">:</span>
+                    <span class="n">new_connection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+                    <span class="n">new_handler</span> <span class="o">=</span> <span class="n">Handler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_connection</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="o">.</span><span class="n">currentText</span><span class="p">(),</span> <span class="n">TIMEOUT</span><span class="p">,</span> <span class="n">new_GNSS</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="o">.</span><span class="n">text</span><span class="p">(),</span> <span class="n">weekField</span><span class="p">,</span> <span class="n">leapSField</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">new_handler</span><span class="o">.</span><span class="n">isActive</span><span class="p">():</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTED_PORTS</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_connection</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">HANDLERS</span><span class="p">[</span><span class="n">new_connection</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_handler</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">HANDLERS</span><span class="p">[</span><span class="n">new_connection</span><span class="p">]</span><span class="o">.</span><span class="n">handleData</span><span class="p">()</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">about</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">MainWindow</span><span class="p">,</span> <span class="s2">&quot;Error&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Cannot connect to </span><span class="si">{</span><span class="n">new_connection</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">about</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">MainWindow</span><span class="p">,</span> <span class="s2">&quot;Error&quot;</span><span class="p">,</span> <span class="s2">&quot;You don&#39;t have selected any GNSS.&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Ui_MainWindow.stopUBXs"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.stopUBXs">[docs]</a>    <span class="k">def</span> <span class="nf">stopUBXs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo che interrompe la registrazione degli stream e quindi richiede la terminazione dei thread.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">inactive</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">handler_keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">HANDLERS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">handler_keys</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">handler_keys</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">HANDLERS</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">recordTS</span><span class="p">)</span>
+                <span class="c1">#if not self.HANDLERS[key].logger.is_active:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">HANDLERS</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+                <span class="n">inactive</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+        <span class="c1"># Remove corresponding table element</span>
+        <span class="k">for</span> <span class="n">port</span> <span class="ow">in</span> <span class="n">inactive</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[LOGGER] </span><span class="si">{</span><span class="n">port</span><span class="si">}</span><span class="s2"> disconnected&quot;</span><span class="p">)</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTED_PORTS</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">port</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">CONNECTED_PORTS</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnDiscoverUBXDevices</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">constellationsListView</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ubxDevicesListView</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1">#se l&#39;acquisizioni è valida, posso procedere alla conversione</span>
+        <span class="n">valid</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">valid</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rinexGroupBox</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Ui_MainWindow.loadFiles"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.loadFiles">[docs]</a>    <span class="k">def</span> <span class="nf">loadFiles</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo che apre un prompt per la raccolta dei files da aggiungere alla checklist.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">filter</span> <span class="o">=</span> <span class="s2">&quot;UBX (*.ubx)&quot;</span>
+        <span class="n">file_name</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QFileDialog</span><span class="p">()</span>
+        <span class="n">file_name</span><span class="o">.</span><span class="n">setFileMode</span><span class="p">(</span><span class="n">QFileDialog</span><span class="o">.</span><span class="n">ExistingFiles</span><span class="p">)</span>
+        <span class="n">names</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">file_name</span><span class="o">.</span><span class="n">getOpenFileNames</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">MainWindow</span><span class="p">,</span> <span class="s2">&quot;Open files&quot;</span><span class="p">,</span> <span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="nb">filter</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span> <span class="o">=</span> <span class="n">QStandardItemModel</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rinexGroupBox</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="n">QStandardItem</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+            <span class="n">item</span><span class="o">.</span><span class="n">setCheckable</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">checked</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># di default non sono selezionati</span>
+            <span class="n">check</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Checked</span> <span class="k">if</span> <span class="n">checked</span> <span class="k">else</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Unchecked</span>
+            <span class="n">item</span><span class="o">.</span><span class="n">setCheckState</span><span class="p">(</span><span class="n">check</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span><span class="o">.</span><span class="n">appendRow</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+
+            <span class="c1"># leggo il file</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Reading file </span><span class="se">\&quot;</span><span class="si">%s</span><span class="se">\&quot;</span><span class="s2">. &quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">n</span><span class="p">))</span>
+            <span class="n">dr</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span>
+            <span class="n">data_rover</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">()</span>
+            <span class="n">byte</span> <span class="o">=</span> <span class="n">dr</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">while</span> <span class="n">byte</span><span class="p">:</span>
+                <span class="n">data_rover</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">byte</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">byte</span> <span class="o">=</span> <span class="n">dr</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="p">(</span><span class="n">ubxData</span><span class="p">,</span> <span class="n">nmeaData</span><span class="p">)</span> <span class="o">=</span> <span class="n">decode_ublox_file</span><span class="p">(</span><span class="n">data_rover</span><span class="p">)</span>
+
+            <span class="n">nmeaFile</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="o">.</span><span class="n">text</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;_NMEA.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span>
+
+            <span class="nb">type</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">nmeaData</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">ubxData</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nmeaData</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">ubxData</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">nmeaData</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">nmeaData</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="nb">type</span> <span class="o">+=</span> <span class="s2">&quot; NMEA&quot;</span>
+                    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">nmeaData</span><span class="p">:</span>
+                        <span class="n">nmeaFile</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">bytes</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">encode</span><span class="p">()))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Decoded </span><span class="si">%s</span><span class="s2"> message(s)&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">)</span>
+
+            <span class="n">nmeaFile</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filesListView</span><span class="o">.</span><span class="n">setModel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Files correctly loaded. Ready for RINEX conversion.&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Ui_MainWindow.removeFiles"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.removeFiles">[docs]</a>    <span class="k">def</span> <span class="nf">removeFiles</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo che elimina i files dalla checklist.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">selected</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">r2del</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">checkState</span><span class="p">()</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Checked</span><span class="p">:</span>
+                <span class="n">r2del</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">row</span><span class="p">())</span>
+                <span class="n">selected</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">selected</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QMessageBox</span><span class="o">.</span><span class="n">about</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">MainWindow</span><span class="p">,</span> <span class="s2">&quot;Error&quot;</span><span class="p">,</span> <span class="s2">&quot;No selected files to delete.&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">r2del</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span><span class="o">.</span><span class="n">removeRow</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filesListView</span><span class="o">.</span><span class="n">setModel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Ui_MainWindow.startRinex"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.startRinex">[docs]</a>    <span class="k">def</span> <span class="nf">startRinex</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo che avvia il processo di generazione dei files RINEX eseguendo CONVBIN.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRunRINEX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chkSplitRinexNav</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion212_radio</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion302_radio</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnDiscoverUBXDevices</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">constellationsListView</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ubxDevicesListView</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">txtLogs</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+        <span class="c1"># serial devices</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">checkState</span><span class="p">()</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Checked</span><span class="p">:</span>
+                    <span class="n">new_connection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span><span class="s2">&quot;_&quot;</span><span class="p">)</span>
+                    <span class="n">infile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="o">.</span><span class="n">text</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">new_connection</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">recordTS</span> <span class="o">+</span> <span class="s2">&quot;_rover.ubx&quot;</span>
+                    <span class="n">infile</span> <span class="o">=</span> <span class="n">infile</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+                    <span class="n">outfile_obs</span> <span class="o">=</span> <span class="n">new_connection</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">recordTS</span> <span class="o">+</span> <span class="s2">&quot;_rinex.obs&quot;</span>
+                    <span class="n">outfile_nav</span> <span class="o">=</span> <span class="n">new_connection</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">recordTS</span> <span class="o">+</span> <span class="s2">&quot;_rinex.nav&quot;</span>
+                    <span class="n">convbin_path</span> <span class="o">=</span> <span class="n">rtklibPath</span>
+                    <span class="n">version</span> <span class="o">=</span> <span class="s2">&quot;2.12&quot;</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion302_radio</span><span class="o">.</span><span class="n">isChecked</span><span class="p">():</span>
+                        <span class="n">version</span> <span class="o">=</span> <span class="s2">&quot;3.02&quot;</span>
+
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">chkSplitRinexNav</span><span class="o">.</span><span class="n">checkState</span><span class="p">()</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Checked</span><span class="p">:</span>
+                        <span class="n">run_convbin_obs</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2"> -od -os -oi -ot -ol -v </span><span class="si">%s</span><span class="s2"> -d </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">rtklibConvbin</span><span class="p">,</span> <span class="n">infile</span><span class="p">,</span> <span class="n">version</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">run_convbin_obs</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2"> -od -os -oi -ot -ol -o </span><span class="si">%s</span><span class="s2"> -n </span><span class="si">%s</span><span class="s2"> -v </span><span class="si">%s</span><span class="s2"> -d </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">rtklibConvbin</span><span class="p">,</span> <span class="n">infile</span><span class="p">,</span> <span class="n">outfile_obs</span><span class="p">,</span> <span class="n">outfile_nav</span><span class="p">,</span> <span class="n">version</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>
+                        
+                    <span class="c1"># TODO: check if initial rtklibPath modification works on both linux and windows system (I modified on windows...)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;[RINEX &quot;</span> <span class="o">+</span> <span class="n">new_connection</span> <span class="o">+</span> <span class="s2">&quot;] &quot;</span> <span class="o">+</span> <span class="n">run_convbin_obs</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[RINEX &quot;</span> <span class="o">+</span> <span class="n">new_connection</span> <span class="o">+</span> <span class="s2">&quot;] &quot;</span> <span class="o">+</span> <span class="s2">&quot;************* Conversion ubx --&gt; RINEX *************&quot;</span><span class="p">)</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">convbin_path</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">run_convbin_obs</span><span class="p">)</span>
+                    <span class="n">proc</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span><span class="n">run_convbin_obs</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="c1"># os.system(run_convbin_obs)</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">communicate</span><span class="p">())</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[RINEX &quot;</span> <span class="o">+</span> <span class="n">new_connection</span> <span class="o">+</span> <span class="s2">&quot;] &quot;</span> <span class="o">+</span> <span class="s2">&quot;************* Done! *************&quot;</span><span class="p">)</span>
+
+        <span class="c1"># ubx files</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">checkState</span><span class="p">()</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Checked</span><span class="p">:</span>
+                    <span class="n">ubxFile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">modelFiles</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="p">()</span>
+
+                    <span class="c1"># copio il file nella working dir</span>
+                    <span class="n">pathname_old</span><span class="p">,</span> <span class="n">extension_old</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">ubxFile</span><span class="p">)</span>
+                    <span class="n">targetUBXFile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="o">.</span><span class="n">text</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">pathname_old</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">extension_old</span>
+                    <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">ubxFile</span><span class="p">,</span> <span class="n">targetUBXFile</span><span class="p">)</span>
+                    <span class="n">pathname</span><span class="p">,</span> <span class="n">extension</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">targetUBXFile</span><span class="p">)</span>
+                    <span class="c1"># passo questo a convbin, così da avere i file elaborati direttamente nella working dir</span>
+                    <span class="c1"># targetUBXFile = targetUBXFile.replace(&quot;/&quot;,&quot;/&quot;)</span>
+                    <span class="n">outfile_obs</span> <span class="o">=</span> <span class="n">pathname</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;_rinex.obs&quot;</span>
+                    <span class="n">outfile_nav</span> <span class="o">=</span> <span class="n">pathname</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;_rinex.nav&quot;</span>
+                    <span class="n">convbin_path</span> <span class="o">=</span> <span class="n">rtklibPath</span>
+                    <span class="n">version</span> <span class="o">=</span> <span class="s2">&quot;2.12&quot;</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion302_radio</span><span class="o">.</span><span class="n">isChecked</span><span class="p">():</span>
+                        <span class="n">version</span> <span class="o">=</span> <span class="s2">&quot;3.02&quot;</span>
+
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">chkSplitRinexNav</span><span class="o">.</span><span class="n">checkState</span><span class="p">()</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Checked</span><span class="p">:</span>
+                        <span class="n">run_convbin_obs</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2"> -od -os -oi -ot -ol -v </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">rtklibConvbin</span><span class="p">,</span> <span class="n">targetUBXFile</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">run_convbin_obs</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2"> -od -os -oi -ot -ol -v </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">rtklibConvbin</span><span class="p">,</span> <span class="n">targetUBXFile</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+                    
+                    <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;[RINEX &quot;</span> <span class="o">+</span> <span class="n">pathname</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;] &quot;</span> <span class="o">+</span> <span class="n">run_convbin_obs</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[RINEX &quot;</span> <span class="o">+</span> <span class="n">pathname</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;] &quot;</span> <span class="o">+</span> <span class="s2">&quot;************* Conversion ubx --&gt; RINEX *************&quot;</span><span class="p">)</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">convbin_path</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">run_convbin_obs</span><span class="p">)</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="n">run_convbin_obs</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[RINEX &quot;</span> <span class="o">+</span> <span class="n">pathname</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;] &quot;</span> <span class="o">+</span> <span class="s2">&quot;************* Done! *************&quot;</span><span class="p">)</span>
+
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRunRINEX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chkSplitRinexNav</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chkSplitRinexNav</span><span class="o">.</span><span class="n">setVisible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span> <span class="c1"># TODO: sistemare questo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion212_radio</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rinexVersion302_radio</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnDiscoverUBXDevices</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">constellationsListView</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ubxDevicesListView</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">qm</span> <span class="o">=</span> <span class="n">QtWidgets</span><span class="o">.</span><span class="n">QMessageBox</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">qm</span><span class="o">.</span><span class="n">question</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">MainWindow</span><span class="p">,</span> <span class="s2">&quot;RINEX Conversion&quot;</span><span class="p">,</span> <span class="s2">&quot;RINEX Conversion has been ended. Open folder with all sources and RINEX files?&quot;</span><span class="p">,</span> <span class="n">qm</span><span class="o">.</span><span class="n">Yes</span> <span class="o">|</span> <span class="n">qm</span><span class="o">.</span><span class="n">No</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">r</span> <span class="o">==</span> <span class="n">qm</span><span class="o">.</span><span class="n">Yes</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">openFile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">txtUBXPath</span><span class="o">.</span><span class="n">text</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="Ui_MainWindow.openFile"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.openFile">[docs]</a>    <span class="k">def</span> <span class="nf">openFile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo usato per l&#39;apertura di un percorso nell&#39;esplora risorse.</span>
+<span class="sd">        :param path:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;Windows&quot;</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">startfile</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;Darwin&quot;</span><span class="p">:</span>
+            <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">([</span><span class="s2">&quot;open&quot;</span><span class="p">,</span> <span class="n">path</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">([</span><span class="s2">&quot;xdg-open&quot;</span><span class="p">,</span> <span class="n">path</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="Ui_MainWindow.getPorts"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.getPorts">[docs]</a>    <span class="k">def</span> <span class="nf">getPorts</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo che ritorna tutte le porte COM del pc a cui sono connessi ricevitori ublox.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">serial_objects</span> <span class="o">=</span> <span class="n">comports</span><span class="p">()</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">serial_objects</span><span class="p">)</span>
+
+        <span class="n">active_ports</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># -------------------------------------------------------------------</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;Detecting u-blox(s) connected to COM ports...&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">total</span><span class="p">):</span>
+            <span class="n">so</span> <span class="o">=</span> <span class="n">serial_objects</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">serial</span><span class="o">.</span><span class="n">Serial</span><span class="p">(</span><span class="n">so</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cmbBaudRateUBX</span><span class="o">.</span><span class="n">currentText</span><span class="p">()))</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">is_open</span> <span class="o">==</span> <span class="kc">False</span><span class="p">:</span>
+                    <span class="n">s</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+            <span class="k">except</span> <span class="n">serial</span><span class="o">.</span><span class="n">SerialException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;SERIAL ERROR on opening serial port: &quot;</span> <span class="o">+</span> <span class="n">so</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+                <span class="k">break</span>
+
+            <span class="c1"># libero i bytes letti</span>
+            <span class="n">bytes2read</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">in_waiting</span>
+            <span class="k">if</span> <span class="n">bytes2read</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">s</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">bytes2read</span><span class="p">)</span>
+            <span class="c1"># poll for UBX-RXM-RAWX</span>
+            <span class="n">s</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\xb5\x62\x02\x15\x00\x00\x17\x47</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.01</span><span class="p">)</span>
+
+            <span class="n">bytes_1</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">bytes_2</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">while</span> <span class="p">(</span><span class="n">bytes_1</span> <span class="o">!=</span> <span class="n">bytes_2</span> <span class="ow">or</span> <span class="n">bytes_1</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="n">bytes_1</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">in_waiting</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+                <span class="n">bytes_2</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">in_waiting</span>
+
+            <span class="n">replyBIN</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">(</span><span class="n">splitBytes</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">bytes_1</span><span class="p">))))</span>
+            <span class="n">msgBIN</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">([</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\xb5</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x62</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x02</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x15</span><span class="s2">&quot;</span><span class="p">]))</span>
+            <span class="n">pos</span> <span class="o">=</span> <span class="n">strfind</span><span class="p">(</span><span class="n">msgBIN</span><span class="p">,</span> <span class="n">replyBIN</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">l</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">replyBIN</span><span class="p">[(</span><span class="n">pos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">32</span><span class="p">):(</span><span class="n">pos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">39</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span>
+                        <span class="nb">int</span><span class="p">(</span><span class="n">replyBIN</span><span class="p">[(</span><span class="n">pos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">40</span><span class="p">):(</span><span class="n">pos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">47</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="nb">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">l</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;u-blox receiver detected on port &quot;</span> <span class="o">+</span> <span class="n">so</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+                    <span class="n">active_ports</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">so</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+                    <span class="c1"># break</span>
+            <span class="n">s</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">del</span> <span class="n">s</span>
+        <span class="c1"># -------------------------------------------------------------------</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">active_ports</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">printLog</span><span class="p">(</span><span class="s2">&quot;No u-blox(s) device detected...&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">active_ports</span></div>
+
+<div class="viewcode-block" id="Ui_MainWindow.toggleUBXControl"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.toggleUBXControl">[docs]</a>    <span class="k">def</span> <span class="nf">toggleUBXControl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo che abilita e disabilita le checkbox di checklist.</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">selected</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">rowCount</span><span class="p">()):</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">checkState</span><span class="p">()</span> <span class="o">==</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">Checked</span><span class="p">:</span>
+                <span class="n">selected</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">selected</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">btnRecordUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">btnStopUBX</span><span class="o">.</span><span class="n">setEnabled</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Ui_MainWindow.printLog"><a class="viewcode-back" href="../main.html#main.Ui_MainWindow.printLog">[docs]</a>    <span class="k">def</span> <span class="nf">printLog</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Metodo che si occupa di stampare un messaggio nella console aggiungengolo in coda.</span>
+<span class="sd">        :param msg: messaggio da stampare</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">test</span> <span class="o">=</span> <span class="n">GUIUpdater</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="n">test</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="n">test</span><span class="o">.</span><span class="n">mySignal</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">txtLogs</span><span class="o">.</span><span class="n">append</span><span class="p">)</span>
+        <span class="c1"># self.test.finished.connect(thread_finished)</span>
+        <span class="n">test</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+        <span class="k">del</span> <span class="n">test</span></div></div>
+
+
+<div class="viewcode-block" id="decode_ublox_file"><a class="viewcode-back" href="../main.html#main.decode_ublox_file">[docs]</a><span class="k">def</span> <span class="nf">decode_ublox_file</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Funzione che decodifica lo stream di file caricati. Costruisce soltanto il file NMEA.</span>
+<span class="sd">    :param msg:</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">(</span><span class="n">splitBytes</span><span class="p">(</span><span class="n">msg</span><span class="p">)))</span>
+
+    <span class="n">messaggioUBX</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">([</span><span class="n">UBXMessage</span><span class="o">.</span><span class="n">SYNC_CHAR_1</span><span class="p">,</span> <span class="n">UBXMessage</span><span class="o">.</span><span class="n">SYNC_CHAR_2</span><span class="p">]))</span>  <span class="c1"># b5 62</span>
+    <span class="n">posUBX</span> <span class="o">=</span> <span class="n">strfind</span><span class="p">(</span><span class="n">messaggioUBX</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+
+    <span class="n">messaggioNMEA</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">([</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x24</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x47</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x4e</span><span class="s2">&quot;</span><span class="p">]))</span>  <span class="c1"># $ G N</span>
+    <span class="n">posNMEA</span> <span class="o">=</span> <span class="n">strfind</span><span class="p">(</span><span class="n">messaggioNMEA</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+
+    <span class="c1"># variabili che conterranno quello che andrò ad esportare</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">NMEA_sentences</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">NMEA_string</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+    <span class="c1"># il messaggio che ho è misto: occorre capire l&#39;indice da cui partire a decodificare</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">posUBX</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">posNMEA</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">posUBX</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">posNMEA</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="n">pos</span> <span class="o">=</span> <span class="n">posUBX</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">pos</span> <span class="o">=</span> <span class="n">posNMEA</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">posUBX</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">posUBX</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">posNMEA</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">posNMEA</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="c1"># inizio la fase di decodifica del messaggio</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># controllo che io abbia UBX o NMEA nei primi 2/3 frammenti</span>
+    <span class="k">while</span> <span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">16</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+        <span class="c1"># controllo se ho l&#39;header UBX</span>
+        <span class="k">if</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">16</span><span class="p">)]</span> <span class="o">==</span> <span class="n">messaggioUBX</span><span class="p">:</span>
+            <span class="c1"># aumento il contatore</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="c1"># salto i primi due bytes di intestazione del messaggio</span>
+            <span class="n">pos</span> <span class="o">+=</span> <span class="mi">16</span>
+            <span class="c1"># ora dovrei avere classe, id e lunghezza del payload</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">32</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+                <span class="c1"># prendo la classe</span>
+                <span class="n">classId</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">byteorder</span><span class="o">=</span><span class="s1">&#39;big&#39;</span><span class="p">)</span>
+                <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+                <span class="c1"># prendo l&#39;id</span>
+                <span class="n">msgId</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">byteorder</span><span class="o">=</span><span class="s1">&#39;big&#39;</span><span class="p">)</span>
+                <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+
+                <span class="c1"># controllo che il messaggio non sia troncato</span>
+                <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">find</span><span class="p">(</span><span class="n">posUBX</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+                    <span class="n">f</span> <span class="o">=</span> <span class="n">find</span><span class="p">(</span><span class="n">posUBX</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">f</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">posNext</span> <span class="o">=</span> <span class="n">posUBX</span><span class="p">[</span><span class="n">f</span><span class="p">]</span>
+                <span class="n">posRem</span> <span class="o">=</span> <span class="n">posNext</span> <span class="o">-</span> <span class="n">pos</span>
+
+                <span class="c1"># estraggo la lunghezza del payload (2 byte)</span>
+                <span class="n">LEN1</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span>
+                <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+                <span class="n">LEN2</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span>
+                <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+
+                <span class="n">LEN</span> <span class="o">=</span> <span class="n">LEN1</span> <span class="o">+</span> <span class="p">(</span><span class="n">LEN2</span> <span class="o">*</span> <span class="nb">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+
+                <span class="k">if</span> <span class="n">LEN</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># subito dopo la lunghezza ho il payload lungo LEN, poi due byte di fine stream (checksum)</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="p">(</span><span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span><span class="p">)</span> <span class="o">+</span> <span class="mi">16</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+                        <span class="c1"># calcolo il checksum</span>
+                        <span class="n">CK_A</span> <span class="o">=</span> <span class="mi">0</span>
+                        <span class="n">CK_B</span> <span class="o">=</span> <span class="mi">0</span>
+
+                        <span class="n">slices</span> <span class="o">=</span> <span class="p">[]</span>
+
+                        <span class="n">j</span> <span class="o">=</span> <span class="n">pos</span> <span class="o">-</span> <span class="mi">32</span>
+                        <span class="k">while</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span><span class="p">):</span>
+                            <span class="n">t</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="n">j</span><span class="p">:(</span><span class="n">j</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)]</span>
+                            <span class="n">slices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">j</span><span class="p">:(</span><span class="n">j</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">))</span>
+                            <span class="n">j</span> <span class="o">+=</span> <span class="mi">8</span>
+
+                        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">slices</span><span class="p">)):</span>
+                            <span class="n">CK_A</span> <span class="o">=</span> <span class="n">CK_A</span> <span class="o">+</span> <span class="n">slices</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+                            <span class="n">CK_B</span> <span class="o">=</span> <span class="n">CK_B</span> <span class="o">+</span> <span class="n">CK_A</span>
+
+                        <span class="n">CK_A</span> <span class="o">=</span> <span class="n">CK_A</span> <span class="o">%</span> <span class="mi">256</span>
+                        <span class="n">CK_B</span> <span class="o">=</span> <span class="n">CK_B</span> <span class="o">%</span> <span class="mi">256</span>
+                        <span class="n">CK_A_rec</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span><span class="p">):(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span>
+                        <span class="n">CK_B_rec</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span> <span class="o">+</span> <span class="mi">8</span><span class="p">):(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span> <span class="o">+</span> <span class="mi">16</span><span class="p">)],</span> <span class="mi">2</span><span class="p">)</span>
+
+                        <span class="c1"># controllo se il checksum corrisponde</span>
+                        <span class="k">if</span> <span class="n">CK_A</span> <span class="o">==</span> <span class="n">CK_A_rec</span> <span class="ow">and</span> <span class="n">CK_B</span> <span class="o">==</span> <span class="n">CK_B_rec</span><span class="p">:</span>
+                            <span class="n">s</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="p">(</span><span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span><span class="p">))]</span>
+                            <span class="n">nB</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="mi">8</span><span class="p">)</span>
+                            <span class="n">MSG</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="n">nB</span><span class="p">,</span> <span class="s1">&#39;little&#39;</span><span class="p">)</span>
+                            <span class="n">MSG</span> <span class="o">=</span> <span class="n">splitBytes</span><span class="p">(</span><span class="n">MSG</span><span class="p">)</span>
+                            <span class="c1"># posso analizzare il messaggio nel dettaglio, esaminando il payload con l&#39;opportuna funzione in base a id, classe</span>
+                            <span class="k">if</span> <span class="n">classId</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x02</span><span class="s2">&quot;</span><span class="p">:</span>  <span class="c1"># RXM</span>
+                                <span class="k">if</span> <span class="n">msgId</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x15</span><span class="s2">&quot;</span><span class="p">:</span>  <span class="c1"># RXM-RAWX</span>
+                                    <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">decode_RXM_RAWX</span><span class="p">(</span><span class="n">MSG</span><span class="p">))</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="c1">#printLog(&quot;Checksum error.&quot;)</span>
+                            <span class="c1"># salto il messaggio troncato</span>
+                            <span class="k">if</span> <span class="n">posRem</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="p">(</span><span class="n">posRem</span> <span class="o">%</span> <span class="mi">8</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="mi">8</span> <span class="o">*</span> <span class="p">(</span><span class="n">LEN</span> <span class="o">+</span> <span class="mi">4</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">posRem</span><span class="p">:</span>
+                                <span class="c1">#self.printLog(&quot;Truncated UBX message, detected and skipped&quot;)</span>
+                                <span class="n">pos</span> <span class="o">=</span> <span class="n">posNext</span>
+                                <span class="k">continue</span>
+
+                        <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">LEN</span>
+                        <span class="n">pos</span> <span class="o">+=</span> <span class="mi">16</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">break</span>
+        <span class="c1"># controllo se ho l&#39;header NMEA</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">24</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="ow">and</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">24</span><span class="p">)]</span> <span class="o">==</span> <span class="n">messaggioNMEA</span><span class="p">:</span>
+            <span class="c1"># cerco la fine del messaggio (CRLF)</span>
+            <span class="c1"># NMEA0183 solitamente è lungo 82, ma al fine di evitare lunghezze non valide sono usati un massimo di 100 caratteri.</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="o">-</span> <span class="n">pos</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">800</span><span class="p">:</span>
+                <span class="n">posFineNMEA</span> <span class="o">=</span> <span class="n">strfind</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">(</span><span class="n">splitBytes</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x0d\x0a</span><span class="s2">&quot;</span><span class="p">))),</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">posFineNMEA</span> <span class="o">=</span> <span class="n">strfind</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg2bits</span><span class="p">(</span><span class="n">splitBytes</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x0d\x0a</span><span class="s2">&quot;</span><span class="p">))),</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">800</span><span class="p">)])</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">posFineNMEA</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># salvo la stringa</span>
+                <span class="k">while</span> <span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)]</span> <span class="o">!=</span> <span class="s2">&quot;00001101&quot;</span><span class="p">:</span>
+                    <span class="n">NMEA_string</span> <span class="o">+=</span> <span class="nb">chr</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">))</span>
+                    <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+
+                <span class="c1"># salvo soltanto l&#39;\n</span>
+                <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+                <span class="n">NMEA_string</span> <span class="o">+=</span> <span class="nb">chr</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="n">pos</span><span class="p">:(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)],</span> <span class="mi">2</span><span class="p">))</span>
+                <span class="n">pos</span> <span class="o">+=</span> <span class="mi">8</span>
+
+                <span class="n">NMEA_sentences</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">NMEA_string</span><span class="p">)</span>
+                <span class="n">NMEA_string</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># la sentence NMEA è iniziata, ma non è disponibile.</span>
+                <span class="c1"># scorro l&#39;header e continuo</span>
+                <span class="n">pos</span> <span class="o">+=</span> <span class="mi">24</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># controllo se ci sono altri pacchetti</span>
+            <span class="c1"># pos = pos_UBX(find(pos_UBX &gt; pos, 1));</span>
+            <span class="c1"># if (isempty(pos)), break, end;</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">find</span><span class="p">(</span><span class="n">posUBX</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">p</span> <span class="o">=</span> <span class="n">find</span><span class="p">(</span><span class="n">posUBX</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">posUBX</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">p</span><span class="p">:</span>
+                    <span class="n">pos</span> <span class="o">=</span> <span class="n">posUBX</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">break</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">NMEA_sentences</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="GUIUpdater"><a class="viewcode-back" href="../main.html#main.GUIUpdater">[docs]</a><span class="k">class</span> <span class="nc">GUIUpdater</span><span class="p">(</span><span class="n">QtCore</span><span class="o">.</span><span class="n">QThread</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Classe che si occupa di registrare un log in una queue al fine di evitare corse critiche tra i thread che acquisiscono dai device in parallelo e l&#39;unico thread che gestisce la gui.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mySignal</span> <span class="o">=</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">pyqtSignal</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">msg</span> <span class="o">=</span> <span class="n">msg</span>
+
+<div class="viewcode-block" id="GUIUpdater.run"><a class="viewcode-back" href="../main.html#main.GUIUpdater.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># self.setPriority(QtCore.QThread.HighPriority)</span>
+        <span class="c1">#while True:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mySignal</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">msg</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="GUIUpdater.stop"><a class="viewcode-back" href="../main.html#main.GUIUpdater.stop">[docs]</a>    <span class="k">def</span> <span class="nf">stop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_running</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="c1"># print(&quot;Stop Thread&quot;)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span></div></div>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">QApplication</span><span class="p">([])</span>
+    <span class="n">window</span> <span class="o">=</span> <span class="n">QMainWindow</span><span class="p">()</span>
+    <span class="n">ui</span> <span class="o">=</span> <span class="n">Ui_MainWindow</span><span class="p">(</span><span class="n">window</span><span class="p">)</span>
+    <span class="n">exit</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">exec</span><span class="p">())</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">GNSS DataLogger and Parser Documentation</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">modules package</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, Luca Padalino.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 6.1.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

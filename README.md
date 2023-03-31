@@ -1,5 +1,5 @@
 # GPSDataLogger and Parser
-"GPSDataLogger and Parser" è il progetto realizzato per il corso "Progetto di Ingegneria Informatica" (5CFU, prof.ssa Maria Grazia Fugini) nell'area di ricerca relativa alle architetture e sistemi di elaborazione.
+"GPSDataLogger and Parser" è il progetto realizzato per il corso "Progetto di Ingegneria Informatica" (5CFU, prof.ssa Maria Grazia Fugini) nell'area di ricerca relativa alle architetture e sistemi di elaborazione, in collaborazione con il D.I.C.A. del Politecnico e l'Università di Ferrara.
 
 La traccia sviluppata è quella proposta dal prof. Mirko Reguzzoni: "GPS Data Logger and Parser". 
 
@@ -19,9 +19,9 @@ Ora è possibile lanciare il software entrando nella directory del progetto e di
 Per qualsiasi informazione o segnalazione di possibili malfunzionamenti è possibile scrivere a [luca.padalino@mail.polimi.it](mailto:luca.padalino@mail.polimi.it)
 
 ## Allegati (contenuto della cartella "docs")
-1. [Relazione ai Tutor (proff. Mirko Reguzzoni e Lorenzo Rossi, D.I.C.A.)](docs_source/1_Padalino_10695959_RelazioneTutor.pdf)
-2. [Presentazione alla prof.ssa Titolare del Corso (prof.ssa Maria Grazia Fugini)](docs_source/2_Padalino_10695959_presentazione.pdf)
-3. [Slides di Presentazione del Progetto](docs_source/3_Padalino_10695959_PresentazioneOrale.pdf)
-4. [Manuale Operativo](docs_source/4_Padalino_10695959_ManualeOperativo.pdf)
+1. [Relazione ai Tutor (proff. Mirko Reguzzoni e Lorenzo Rossi, D.I.C.A.)](./1_Padalino_10695959_RelazioneTutor.pdf)
+2. [Presentazione alla prof.ssa Titolare del Corso (prof.ssa Maria Grazia Fugini)](./2_Padalino_10695959_presentazione.pdf)
+3. [Slides di Presentazione del Progetto](./3_Padalino_10695959_PresentazioneOrale.pdf)
+4. [Manuale Operativo](./4_Padalino_10695959_ManualeOperativo.pdf)
 5. [Documentazione del Codice Sorgente](docs_source/build/html/index.html)
 6. [Presentazione Meeting del 16/01/2023](./GNSSDataLoggerParser.pdf)
