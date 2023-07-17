@@ -613,37 +613,37 @@ class Ui_MainWindow():
             try:
                 if s.is_open == False:
                     s.open()
+                # libero i bytes letti
+                bytes2read = s.in_waiting
+                if bytes2read > 0:
+                    s.read(bytes2read)
+                # poll for UBX-RXM-RAWX
+                s.write(b"\xb5\x62\x02\x15\x00\x00\x17\x47")
+                time.sleep(3)
+
+                bytes_1 = s.in_waiting
+                # bytes_1 = 0
+                # bytes_2 = 0
+                # while (bytes_1 != bytes_2 or bytes_1 == 0):
+                #     bytes_1 = s.in_waiting
+                #     time.sleep(0.5)
+                #     bytes_2 = s.in_waiting
+
+                replyBIN = ''.join(msg2bits(splitBytes(s.read(bytes_1))))
+                msgBIN = ''.join(msg2bits([b"\xb5", b"\x62", b"\x02", b"\x15"]))
+                pos = strfind(msgBIN, replyBIN)
+                if len(pos) > 0:
+                    l = int(replyBIN[(pos[0] + 32):(pos[0] + 39)], 2) + (
+                            int(replyBIN[(pos[0] + 40):(pos[0] + 47)], 2) * pow(2, 8))
+                    if l != 0:
+                        self.printLog("u-blox receiver detected on port " + so.device)
+                        active_ports.append(so.device)
+                        # break
+                s.close()
+                del s
             except serial.SerialException as e:
                 self.printLog("SERIAL ERROR on opening serial port: " + so.device)
                 break
-
-            # libero i bytes letti
-            bytes2read = s.in_waiting
-            if bytes2read > 0:
-                s.read(bytes2read)
-            # poll for UBX-RXM-RAWX
-            s.write(b"\xb5\x62\x02\x15\x00\x00\x17\x47")
-            time.sleep(0.01)
-
-            bytes_1 = 0
-            bytes_2 = 0
-            while (bytes_1 != bytes_2 or bytes_1 == 0):
-                bytes_1 = s.in_waiting
-                time.sleep(0.5)
-                bytes_2 = s.in_waiting
-
-            replyBIN = ''.join(msg2bits(splitBytes(s.read(bytes_1))))
-            msgBIN = ''.join(msg2bits([b"\xb5", b"\x62", b"\x02", b"\x15"]))
-            pos = strfind(msgBIN, replyBIN)
-            if len(pos) > 0:
-                l = int(replyBIN[(pos[0] + 32):(pos[0] + 39)], 2) + (
-                        int(replyBIN[(pos[0] + 40):(pos[0] + 47)], 2) * pow(2, 8))
-                if l != 0:
-                    self.printLog("u-blox receiver detected on port " + so.device)
-                    active_ports.append(so.device)
-                    # break
-            s.close()
-            del s
         # -------------------------------------------------------------------
         if len(active_ports) == 0:
             self.printLog("No u-blox(s) device detected...")
