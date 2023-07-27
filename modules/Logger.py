@@ -12,6 +12,8 @@ from .UBXCodes import ublox_UBX_codes
 from .Utils import strfind, msg2bits, splitBytes, find, decode_NAV_TIMEBDS, decode_NAV_TIMEGAL, decode_NAV_TIMEGPS, \
     decode_NAV_TIMEGLO, decode_NAV_TIMEUTC, decode_RXM_RAWX
 
+from datetime import datetime, timedelta
+
 ATTEMPTS_DEFAULT = 5
 SEC_TO_WAIT_DEFAULT = 10
 
@@ -245,7 +247,43 @@ class Logger():
                 self.attempts = 0
 
         self.printLog("Closing logging files.")
+
+        file_name = self.ubxFile.name
+        nmea_txt = self.nmeaFile.name[:-4] + "_def.txt"
+        nmea_times_txt = self.timeSyncNMEAFile.name[:-4] + "_def.txt"
+
         fileNames = self.closeStream(t, True)
+
+        # TODO: check da qui in poi
+        # self.printLog("Updating NMEA files...")
+        # # estrazione stringhe NMEA
+        # acq_date = datetime.datetime.now
+        # nmea_regex = re.compile(rb'\$GN[A-Z]{3}.*?\r\n')
+
+        # with open(file_name, 'rb') as file:
+        #     binary_data = file.read()
+
+        # # crea i due file in cui salvare tempi e stringhe NMEA
+        # nmea_file = open(nmea_txt, "w")
+        # nmea_times_file = open(nmea_times_txt, "w")
+
+        # nmea_strings = nmea_regex.findall(binary_data)
+        # nmea_strings = [nmea.decode('utf-8') for nmea in nmea_strings]
+
+        # for s in nmea_strings:
+        #     # Estrae il timestamp dalla stringa NMEA
+        #     timestamp = s.split(',')[1]
+        #     # Converte il timestamp in un oggetto datetime e aggiunge 2 ore
+        #     nmea_datetime = datetime.strptime(timestamp, "%H%M%S.%f").replace(year=acq_date.year, month=acq_date.month, day=acq_date.day)
+        #     nmea_datetime = nmea_datetime + timedelta(hours=2)
+        #     # Formatta il datetime nel formato desiderato
+        #     formatted_datetime = nmea_datetime.strftime("%Y-%m-%d %H:%M:%S")
+        #     # scrivo nei files
+        #     nmea_times_file.write(formatted_datetime + "\t" + timestamp + "\n")
+        #     nmea_file.write(s)
+
+        # nmea_file.close()
+        # nmea_times_file.close()
 
     def closeStream(self, threadObj, renameFiles = False):
         """
@@ -852,134 +890,138 @@ class Logger():
         return (data, NMEA_sentences)
 
     def decode_ublox_new(self, msg):
-            # trovo tutte le stringhe NMEA
-            NMEA_regex = re.compile(rb'\$GN[A-Z]{3}.*?\r\n')
-            NMEA_sentences = NMEA_regex.findall(msg)
-            NMEA_sentences = [nmea.decode('utf-8') for nmea in NMEA_sentences]
-            if len(NMEA_sentences) <= 0:
-                NMEA_sentences = None
+            try:
+                # trovo tutte le stringhe NMEA
+                NMEA_regex = re.compile(rb'\$GN[A-Z]{3}.*?\r\n')
+                NMEA_sentences = NMEA_regex.findall(msg)
+                NMEA_sentences = [nmea.decode('utf-8') for nmea in NMEA_sentences]
+                if len(NMEA_sentences) <= 0:
+                    NMEA_sentences = None
 
-            # processo gli UBX
-            msg = "".join(msg2bits(splitBytes(msg)))
-            
-            messaggioUBX = "".join(msg2bits([UBXMessage.SYNC_CHAR_1, UBXMessage.SYNC_CHAR_2]))  # b5 62
-            posUBX = strfind(messaggioUBX, msg)
+                # processo gli UBX
+                msg = "".join(msg2bits(splitBytes(msg)))
+                
+                messaggioUBX = "".join(msg2bits([UBXMessage.SYNC_CHAR_1, UBXMessage.SYNC_CHAR_2]))  # b5 62
+                posUBX = strfind(messaggioUBX, msg)
 
-            # variabili che conterranno quello che andrò ad esportare
-            data = []
-            
-            if len(posUBX) > 0:
-                pos = posUBX[0]
-            else:
-                return (None, NMEA_sentences)
-
-            # inizio la fase di decodifica del messaggio
-            i = 0
-
-            # controllo che io abbia UBX o NMEA nei primi 2/3 frammenti
-            while (pos + 16) <= len(msg):
-                # controllo se ho l'header UBX
-                if msg[pos:(pos + 16)] == messaggioUBX:
-                    # aumento il contatore
-                    i += 1
-                    # salto i primi due bytes di intestazione del messaggio
-                    pos += 16
-                    # ora dovrei avere classe, id e lunghezza del payload
-                    if (pos + 32) <= len(msg):
-                        # prendo la classe
-                        classId = int(msg[pos:(pos + 8)], 2).to_bytes(1, byteorder='big')
-                        pos += 8
-                        # prendo l'id
-                        msgId = int(msg[pos:(pos + 8)], 2).to_bytes(1, byteorder='big')
-                        pos += 8
-
-                        # controllo che il messaggio non sia troncato
-                        if (len(find(posUBX, pos, 1)) > 0):
-                            f = find(posUBX, pos, 1)[0]
-                        else:
-                            f = 0
-                        posNext = posUBX[f]
-                        posRem = posNext - pos
-
-                        # estraggo la lunghezza del payload (2 byte)
-                        LEN1 = int(msg[pos:(pos + 8)], 2)
-                        pos += 8
-                        LEN2 = int(msg[pos:(pos + 8)], 2)
-                        pos += 8
-
-                        LEN = LEN1 + (LEN2 * pow(2, 8))
-
-                        if LEN != 0:
-                            # subito dopo la lunghezza ho il payload lungo LEN, poi due byte di fine stream (checksum)
-                            if (pos + (8 * LEN) + 16) <= len(msg):
-                                # calcolo il checksum
-                                CK_A = 0
-                                CK_B = 0
-
-                                slices = []
-
-                                j = pos - 32
-                                while j < (pos + 8 * LEN):
-                                    t = msg[j:(j + 8)]
-                                    slices.append(int(msg[j:(j + 8)], 2))
-                                    j += 8
-
-                                for r in range(len(slices)):
-                                    CK_A = CK_A + slices[r]
-                                    CK_B = CK_B + CK_A
-
-                                CK_A = CK_A % 256
-                                CK_B = CK_B % 256
-                                CK_A_rec = int(msg[(pos + 8 * LEN):(pos + 8 * LEN + 8)], 2)
-                                CK_B_rec = int(msg[(pos + 8 * LEN + 8):(pos + 8 * LEN + 16)], 2)
-
-                                # controllo se il checksum corrisponde
-                                if CK_A == CK_A_rec and CK_B == CK_B_rec:
-                                    s = msg[pos:(pos + (8 * LEN))]
-                                    nB = math.ceil(len(s) / 8)
-                                    MSG = int(s, 2).to_bytes(nB, 'little')
-                                    MSG = splitBytes(MSG)
-                                    # posso analizzare il messaggio nel dettaglio, esaminando il payload con l'opportuna funzione in base a id, classe
-                                    if classId == b"\x01":  # NAV
-                                        if msgId == b"\x24":  # NAV-TIMEBDS
-                                            data.append(decode_NAV_TIMEBDS(MSG))
-                                        elif msgId == b"\x25":  # NAV-TIMEGAL
-                                            data.append(decode_NAV_TIMEGAL(MSG))
-                                        elif msgId == b"\x20":  # NAV-TIMEGPS
-                                            data.append(decode_NAV_TIMEGPS(MSG))
-                                        elif msgId == b"\x23":  # NAV-TIMEGLO
-                                            data.append(decode_NAV_TIMEGLO(MSG))
-                                        elif msgId == b"\x21":  # NAV-TIMEUTC
-                                            data.append(decode_NAV_TIMEUTC(MSG))
-                                    elif classId == b"\x02": # RXM
-                                        if msgId == b"\x15": # RXM-RAWX
-                                            data.append(decode_RXM_RAWX(MSG))
-                                else:
-                                    self.printLog("Checksum error.")
-                                    # salto il messaggio troncato
-                                    if posRem > 0 and (posRem % 8) != 0 and 8 * (LEN + 4) > posRem:
-                                        self.printLog("Truncated UBX message, detected and skipped")
-                                        pos = posNext
-                                        continue
-
-                                pos += 8 * LEN
-                                pos += 16
-                            else:
-                                break
-                    else:
-                        break
+                # variabili che conterranno quello che andrò ad esportare
+                data = []
+                
+                if len(posUBX) > 0:
+                    pos = posUBX[0]
                 else:
-                    # TODO: provare questo...
-                    # controllo se ci sono altri pacchetti
-                    # pos = pos_UBX(find(pos_UBX > pos, 1));
-                    # if (isempty(pos)), break, end;
-                    if len(find(posUBX, pos, 1)) > 0:
-                        p = find(posUBX, pos, 1)[0]
-                        if len(posUBX) >= p:
-                            pos = posUBX[p]
+                    return (None, NMEA_sentences)
+
+                # inizio la fase di decodifica del messaggio
+                i = 0
+
+                # controllo che io abbia UBX o NMEA nei primi 2/3 frammenti
+                while (pos + 16) <= len(msg):
+                    # controllo se ho l'header UBX
+                    if msg[pos:(pos + 16)] == messaggioUBX:
+                        # aumento il contatore
+                        i += 1
+                        # salto i primi due bytes di intestazione del messaggio
+                        pos += 16
+                        # ora dovrei avere classe, id e lunghezza del payload
+                        if (pos + 32) <= len(msg):
+                            # prendo la classe
+                            classId = int(msg[pos:(pos + 8)], 2).to_bytes(1, byteorder='big')
+                            pos += 8
+                            # prendo l'id
+                            msgId = int(msg[pos:(pos + 8)], 2).to_bytes(1, byteorder='big')
+                            pos += 8
+
+                            # controllo che il messaggio non sia troncato
+                            if (len(find(posUBX, pos, 1)) > 0):
+                                f = find(posUBX, pos, 1)[0]
+                            else:
+                                f = 0
+                            posNext = posUBX[f]
+                            posRem = posNext - pos
+
+                            # estraggo la lunghezza del payload (2 byte)
+                            LEN1 = int(msg[pos:(pos + 8)], 2)
+                            pos += 8
+                            LEN2 = int(msg[pos:(pos + 8)], 2)
+                            pos += 8
+
+                            LEN = LEN1 + (LEN2 * pow(2, 8))
+
+                            if LEN != 0:
+                                # subito dopo la lunghezza ho il payload lungo LEN, poi due byte di fine stream (checksum)
+                                if (pos + (8 * LEN) + 16) <= len(msg):
+                                    # calcolo il checksum
+                                    CK_A = 0
+                                    CK_B = 0
+
+                                    slices = []
+
+                                    j = pos - 32
+                                    while j < (pos + 8 * LEN):
+                                        t = msg[j:(j + 8)]
+                                        slices.append(int(msg[j:(j + 8)], 2))
+                                        j += 8
+
+                                    for r in range(len(slices)):
+                                        CK_A = CK_A + slices[r]
+                                        CK_B = CK_B + CK_A
+
+                                    CK_A = CK_A % 256
+                                    CK_B = CK_B % 256
+                                    CK_A_rec = int(msg[(pos + 8 * LEN):(pos + 8 * LEN + 8)], 2)
+                                    CK_B_rec = int(msg[(pos + 8 * LEN + 8):(pos + 8 * LEN + 16)], 2)
+
+                                    # controllo se il checksum corrisponde
+                                    if CK_A == CK_A_rec and CK_B == CK_B_rec:
+                                        s = msg[pos:(pos + (8 * LEN))]
+                                        nB = math.ceil(len(s) / 8)
+                                        MSG = int(s, 2).to_bytes(nB, 'little')
+                                        MSG = splitBytes(MSG)
+                                        # posso analizzare il messaggio nel dettaglio, esaminando il payload con l'opportuna funzione in base a id, classe
+                                        if classId == b"\x01":  # NAV
+                                            if msgId == b"\x24":  # NAV-TIMEBDS
+                                                data.append(decode_NAV_TIMEBDS(MSG))
+                                            elif msgId == b"\x25":  # NAV-TIMEGAL
+                                                data.append(decode_NAV_TIMEGAL(MSG))
+                                            elif msgId == b"\x20":  # NAV-TIMEGPS
+                                                data.append(decode_NAV_TIMEGPS(MSG))
+                                            elif msgId == b"\x23":  # NAV-TIMEGLO
+                                                data.append(decode_NAV_TIMEGLO(MSG))
+                                            elif msgId == b"\x21":  # NAV-TIMEUTC
+                                                data.append(decode_NAV_TIMEUTC(MSG))
+                                        elif classId == b"\x02": # RXM
+                                            if msgId == b"\x15": # RXM-RAWX
+                                                data.append(decode_RXM_RAWX(MSG))
+                                    else:
+                                        self.printLog("Checksum error.")
+                                        # salto il messaggio troncato
+                                        if posRem > 0 and (posRem % 8) != 0 and 8 * (LEN + 4) > posRem:
+                                            self.printLog("Truncated UBX message, detected and skipped")
+                                            pos = posNext
+                                            continue
+
+                                    pos += 8 * LEN
+                                    pos += 16
+                                else:
+                                    break
+                        else:
+                            break
                     else:
-                        break
-            return (data, NMEA_sentences)
+                        # TODO: provare questo...
+                        # controllo se ci sono altri pacchetti
+                        # pos = pos_UBX(find(pos_UBX > pos, 1));
+                        # if (isempty(pos)), break, end;
+                        if len(find(posUBX, pos, 1)) > 0:
+                            p = find(posUBX, pos, 1)[0]
+                            if len(posUBX) >= p:
+                                pos = posUBX[p]
+                        else:
+                            break
+                return (data, NMEA_sentences)
+            except Exception as error:
+                print(error)
+                self.printLog("Print Error. Check console.")
 
     # --------------- serial FUNCTION ---------------
     def open_connection(self):
