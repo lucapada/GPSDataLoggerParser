@@ -260,6 +260,7 @@ class Ui_MainWindow():
 
         self.retranslateUi(MainWindow)
         self.tabWidget.setCurrentIndex(1)
+        self.tabWidget.removeTab(1)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
         self.modelFiles = None
         self.model = None

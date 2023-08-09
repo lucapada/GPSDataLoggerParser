@@ -11,8 +11,8 @@ from .UBXMessage import UBXMessage
 from .UBXCodes import ublox_UBX_codes
 from .Utils import strfind, msg2bits, splitBytes, find, decode_NAV_TIMEBDS, decode_NAV_TIMEGAL, decode_NAV_TIMEGPS, \
     decode_NAV_TIMEGLO, decode_NAV_TIMEUTC, decode_RXM_RAWX
-
-from datetime import datetime, timedelta
+   
+from datetime import timedelta
 
 ATTEMPTS_DEFAULT = 5
 SEC_TO_WAIT_DEFAULT = 10
@@ -82,6 +82,11 @@ class Logger():
                     self.serial.close()
                     self.serial.open()
                     if self.serial.isOpen():
+                        # creo il file per il log dei binari
+                        # nomeFile = "C:/Users/italr/Desktop/GPSDataLoggerParser-rtklib/GPSDataLoggerParser-rtklib/test/" + self.serial.port.replace("/","_") + "_bin.txt"
+                        # with open(nomeFile, "w") as file:
+                            # file.write("")
+                    
                         # 1.1) azzero i tentativi, visto che se sono qui sicuramente sono riuscito a ripristinare la connessione, azzero i contatori per gli snapshot
                         self.attempts = ATTEMPTS_DEFAULT
                         # SNAPSHOT_UBX = 0
@@ -92,6 +97,7 @@ class Logger():
                         # 3) COLLEZIONE DATI
                         tic = datetime.datetime.now()
                         receiverDelay = 0.05
+                        queueNMEA = ""
 
                         # 3.1) inizio raccolta dati
                         rover_1 = 0
@@ -141,8 +147,9 @@ class Logger():
                                 #         self.ublox_poll_message("NAV", "TIMEGLO", 0, 0)
 
                                 # leggo il datarover
-                                (ubxData, nmeaData) = self.decode_ublox_new(data_rover)
-
+                                (ubxData, nmeaData, queueNMEA_local) = self.decode_ublox_new(data_rover, queueNMEA) 
+                                queueNMEA = queueNMEA_local
+                                
                                 if (nmeaData is not None or ubxData is not None) and (len(nmeaData) > 0 or len(ubxData) > 0):
                                     if nmeaData is not None and len(nmeaData) > 0:
                                         type += " NMEA"
@@ -247,43 +254,48 @@ class Logger():
                 self.attempts = 0
 
         self.printLog("Closing logging files.")
-
-        file_name = self.ubxFile.name
-        nmea_txt = self.nmeaFile.name[:-4] + "_def.txt"
-        nmea_times_txt = self.timeSyncNMEAFile.name[:-4] + "_def.txt"
-
+        
         fileNames = self.closeStream(t, True)
+        
+        # file_name = fileNames[0]
+        # nmea_txt = fileNames[3][:-4] + "_def.txt"
+        # nmea_times_txt = fileNames[2][:-4] + "_def.txt"
+        
+        
+        # try:
 
-        # TODO: check da qui in poi
-        # self.printLog("Updating NMEA files...")
-        # # estrazione stringhe NMEA
-        # acq_date = datetime.datetime.now
-        # nmea_regex = re.compile(rb'\$GN[A-Z]{3}.*?\r\n')
+            # # TODO: check da qui in poi
+            # self.printLog("Updating NMEA files...")
+            # # estrazione stringhe NMEA
+            # acq_date = datetime.datetime.now
+            # nmea_regex = re.compile(rb'\$GN[A-Z]{3}.*?\r\n')
 
-        # with open(file_name, 'rb') as file:
-        #     binary_data = file.read()
+            # with open(file_name, 'rb') as file:
+                # binary_data = file.read()
 
-        # # crea i due file in cui salvare tempi e stringhe NMEA
-        # nmea_file = open(nmea_txt, "w")
-        # nmea_times_file = open(nmea_times_txt, "w")
+            # # crea i due file in cui salvare tempi e stringhe NMEA
+            # nmea_file = open(nmea_txt, "w")
+            # nmea_times_file = open(nmea_times_txt, "w")
 
-        # nmea_strings = nmea_regex.findall(binary_data)
-        # nmea_strings = [nmea.decode('utf-8') for nmea in nmea_strings]
+            # nmea_strings = nmea_regex.findall(binary_data)
+            # nmea_strings = [nmea.decode('utf-8') for nmea in nmea_strings]
 
-        # for s in nmea_strings:
-        #     # Estrae il timestamp dalla stringa NMEA
-        #     timestamp = s.split(',')[1]
-        #     # Converte il timestamp in un oggetto datetime e aggiunge 2 ore
-        #     nmea_datetime = datetime.strptime(timestamp, "%H%M%S.%f").replace(year=acq_date.year, month=acq_date.month, day=acq_date.day)
-        #     nmea_datetime = nmea_datetime + timedelta(hours=2)
-        #     # Formatta il datetime nel formato desiderato
-        #     formatted_datetime = nmea_datetime.strftime("%Y-%m-%d %H:%M:%S")
-        #     # scrivo nei files
-        #     nmea_times_file.write(formatted_datetime + "\t" + timestamp + "\n")
-        #     nmea_file.write(s)
+            # for s in nmea_strings:
+                # # Estrae il timestamp dalla stringa NMEA
+                # timestamp = s.split(',')[1]
+                # # Converte il timestamp in un oggetto datetime e aggiunge 2 ore
+                # nmea_datetime = datetime.datetime.strptime(timestamp, "%H%M%S.%f")
+                # nmea_datetime = nmea_datetime + timedelta(hours=2)
+                # # Formatta il datetime nel formato desiderato
+                # formatted_datetime = nmea_datetime.strftime("%Y-%m-%d %H:%M:%S")
+                # # scrivo nei files
+                # nmea_times_file.write(formatted_datetime + "\t" + timestamp + "\n")
+                # nmea_file.write(s[:-2]+"\n")
 
-        # nmea_file.close()
-        # nmea_times_file.close()
+            # nmea_file.close()
+            # nmea_times_file.close()
+        # except Exception as e:
+            # print(e)
 
     def closeStream(self, threadObj, renameFiles = False):
         """
@@ -343,7 +355,7 @@ class Logger():
         :return:
         """
         # print(msg, flush=True)
-        self.mainWindow.printLog("[LOGGER \"" + self.serial.port + "\"]: " + msg)
+        self.mainWindow.printLog("[LOGGER \"" + self.serial.port + "\"]: " + str(msg))
         #print("[LOGGER \"" + self.serial.port + "\"]: " + msg, flush=True)
 
     # ---------- UBX FUNCTIONS ----------
@@ -725,6 +737,198 @@ class Logger():
         # invio la richiesta e raccolgo la risposta, senza liberare quello che c'è nel buffer!
         self.send_message(msg.getMessaggio(True), True, True)
 
+    def decode_ublox_new(self, msg, queueNMEA):
+        """
+        Funzione (aggiornata al 09-08-2023) che decodifica il messaggio proveniente dall'ublox (bytes). Distingue NMEA o UBX e alla fine ritorna entrambi.
+        In caso di stringa NMEA troncata, la ripropone nella lettura del blocco successivo e riprova l'estrazione.
+        :param msg: messaggio in bytes
+        :param queueNMEA: stringa NMEA non completa da riproporre al successivo campionamento
+        :return:
+        """
+        msgB = "".join(msg2bits(splitBytes(msg)))
+        if queueNMEA is not None and len(queueNMEA) > 0 and queueNMEA != "":
+            msg = queueNMEA + msgB
+        else: 
+            msg = msgB
+        
+        # salvo il binario intervallando con una "S" i vari blocchi inviati dal ricevitore...
+        # nomeFile = "C:/Users/italr/Desktop/GPSDataLoggerParser-rtklib/GPSDataLoggerParser-rtklib/test/" + self.serial.port.replace("/","_") + "_bin.txt"
+        # with open(nomeFile, "a") as file:
+            # file.write(msg + "S")
+
+        messaggioUBX = "".join(msg2bits([UBXMessage.SYNC_CHAR_1, UBXMessage.SYNC_CHAR_2]))  # b5 62
+        posUBX = strfind(messaggioUBX, msg)
+
+        messaggioNMEA = "".join(msg2bits([b"\x24", b"\x47", b"\x4e"]))  # $ G N
+        posNMEA = strfind(messaggioNMEA, msg)
+
+        # variabili che conterranno quello che andrò ad esportare
+        data = []
+        NMEA_sentences = []
+        NMEA_string = ""
+        NMEA_queue = ""
+
+        # il messaggio che ho è misto: occorre capire l'indice da cui partire a decodificare
+        if len(posUBX) > 0 and len(posNMEA) > 0:
+            if posUBX[0] < posNMEA[0]:
+                pos = posUBX[0]
+            else:
+                pos = posNMEA[0]
+        elif len(posUBX) > 0:
+            pos = posUBX[0]
+        elif len(posNMEA) > 0:
+            pos = posNMEA[0]
+        else:
+            return (None, None, None)
+
+        # inizio la fase di decodifica del messaggio
+        i = 0
+
+        # controllo che io abbia UBX o NMEA nei primi 2/3 frammenti
+        while (pos + 16) <= len(msg):
+            # controllo se ho l'header UBX
+            if msg[pos:(pos + 16)] == messaggioUBX:
+                # aumento il contatore
+                i += 1
+                # salto i primi due bytes di intestazione del messaggio
+                pos += 16
+                # ora dovrei avere classe, id e lunghezza del payload
+                if (pos + 32) <= len(msg):
+                    # prendo la classe
+                    classId = int(msg[pos:(pos + 8)], 2).to_bytes(1, byteorder='big')
+                    pos += 8
+                    # prendo l'id
+                    msgId = int(msg[pos:(pos + 8)], 2).to_bytes(1, byteorder='big')
+                    pos += 8
+
+                    # controllo che il messaggio non sia troncato
+                    if (len(find(posUBX, pos, 1)) > 0):
+                        f = find(posUBX, pos, 1)[0]
+                    else:
+                        f = 0
+                    posNext = posUBX[f]
+                    posRem = posNext - pos
+
+                    # estraggo la lunghezza del payload (2 byte)
+                    LEN1 = int(msg[pos:(pos + 8)], 2)
+                    pos += 8
+                    LEN2 = int(msg[pos:(pos + 8)], 2)
+                    pos += 8
+
+                    LEN = LEN1 + (LEN2 * pow(2, 8))
+
+                    if LEN != 0:
+                        # subito dopo la lunghezza ho il payload lungo LEN, poi due byte di fine stream (checksum)
+                        if (pos + (8 * LEN) + 16) <= len(msg):
+                            # calcolo il checksum
+                            CK_A = 0
+                            CK_B = 0
+
+                            slices = []
+
+                            j = pos - 32
+                            while j < (pos + 8 * LEN):
+                                t = msg[j:(j + 8)]
+                                slices.append(int(msg[j:(j + 8)], 2))
+                                j += 8
+
+                            for r in range(len(slices)):
+                                CK_A = CK_A + slices[r]
+                                CK_B = CK_B + CK_A
+
+                            CK_A = CK_A % 256
+                            CK_B = CK_B % 256
+                            CK_A_rec = int(msg[(pos + 8 * LEN):(pos + 8 * LEN + 8)], 2)
+                            CK_B_rec = int(msg[(pos + 8 * LEN + 8):(pos + 8 * LEN + 16)], 2)
+
+                            # controllo se il checksum corrisponde
+                            if CK_A == CK_A_rec and CK_B == CK_B_rec:
+                                s = msg[pos:(pos + (8 * LEN))]
+                                nB = math.ceil(len(s) / 8)
+                                MSG = int(s, 2).to_bytes(nB, 'little')
+                                MSG = splitBytes(MSG)
+                                # posso analizzare il messaggio nel dettaglio, esaminando il payload con l'opportuna funzione in base a id, classe
+                                if classId == b"\x01":  # NAV
+                                    if msgId == b"\x24":  # NAV-TIMEBDS
+                                        data.append(decode_NAV_TIMEBDS(MSG))
+                                    elif msgId == b"\x25":  # NAV-TIMEGAL
+                                        data.append(decode_NAV_TIMEGAL(MSG))
+                                    elif msgId == b"\x20":  # NAV-TIMEGPS
+                                        data.append(decode_NAV_TIMEGPS(MSG))
+                                    elif msgId == b"\x23":  # NAV-TIMEGLO
+                                        data.append(decode_NAV_TIMEGLO(MSG))
+                                    elif msgId == b"\x21":  # NAV-TIMEUTC
+                                        data.append(decode_NAV_TIMEUTC(MSG))
+                                elif classId == b"\x02": # RXM
+                                    if msgId == b"\x15": # RXM-RAWX
+                                        data.append(decode_RXM_RAWX(MSG))
+                            else:
+                                self.printLog("Checksum error.")
+                                # salto il messaggio troncato
+                                if posRem > 0 and (posRem % 8) != 0 and 8 * (LEN + 4) > posRem:
+                                    self.printLog("Truncated UBX message, detected and skipped")
+                                    pos = posNext
+                                    continue
+
+                            pos += 8 * LEN
+                            pos += 16
+                        else:
+                            # TODO: gestire coda UBX come per NMEA, qui
+                            # print(self.serial.port + ": KO UBX")
+                            break
+                else:
+                    # TODO: gestire coda UBX come per NMEA, qui
+                    # print(self.serial.port + ": KO UBX")
+                    break
+            # controllo se ho l'header NMEA
+            elif (pos + 24) <= len(msg) and msg[pos:(pos + 24)] == messaggioNMEA:
+                # cerco la fine del messaggio (CRLF)
+                # NMEA0183 solitamente è lungo 82, ma al fine di evitare lunghezze non valide sono usati un massimo di 100 caratteri.
+                if (len(msg) - pos) < 800:
+                    posFineNMEA = strfind("".join(msg2bits(splitBytes(b"\x0d\x0a"))), msg[pos:])
+                else:
+                    posFineNMEA = strfind("".join(msg2bits(splitBytes(b"\x0d\x0a"))), msg[pos:(pos + 800)])
+                if len(posFineNMEA) > 0:
+                    # salvo la stringa
+                    while msg[pos:(pos + 8)] != "00001101":
+                        NMEA_string += chr(int(msg[pos:(pos + 8)], 2))
+                        pos += 8
+
+                    # salvo soltanto l'\n
+                    pos += 8
+                    NMEA_string += chr(int(msg[pos:(pos + 8)], 2))
+                    pos += 8
+
+                    NMEA_sentences.append(NMEA_string)
+                    NMEA_string = ""
+                else:
+                    # la sentence NMEA è iniziata, ma non è disponibile.
+                    
+                    # aggiornamento 09-08-2023: ritorno la stringa in modo che mi venga riproposta poi con i nuovi dati...
+                    NMEA_queue = msg[pos:]
+                    
+                    # scorro l'header e continuo
+                    pos += 24
+                    # print("%s: POS %d OVER %d" % (self.serial.port, pos, len(msg)))
+                    # tempSTR = ""
+                    # cur = pos
+                    # while (cur+8) <= len(msg):
+                    #     tempSTR += msg[cur:(cur+8)] + " "
+                    #     cur += 8
+                    # print(self.serial.port + ": NMEA INCOMPLETO " + tempSTR)
+                    # break
+            else:
+                # controllo se ci sono altri pacchetti
+                # pos = pos_UBX(find(pos_UBX > pos, 1));
+                # if (isempty(pos)), break, end;
+                if len(find(posUBX, pos, 1)) > 0:
+                    p = find(posUBX, pos, 1)[0]
+                    if len(posUBX) >= p:
+                        pos = posUBX[p]
+                else:
+                    break
+        return (data, NMEA_sentences, NMEA_queue)
+
     def decode_ublox(self, msg):
         """
         Funzione che decodifica il messaggio proveniente dall'ublox (bytes). Distingue NMEA o UBX e alla fine ritorna entrambi.
@@ -888,140 +1092,6 @@ class Logger():
                 else:
                     break
         return (data, NMEA_sentences)
-
-    def decode_ublox_new(self, msg):
-            try:
-                # trovo tutte le stringhe NMEA
-                NMEA_regex = re.compile(rb'\$GN[A-Z]{3}.*?\r\n')
-                NMEA_sentences = NMEA_regex.findall(msg)
-                NMEA_sentences = [nmea.decode('utf-8') for nmea in NMEA_sentences]
-                if len(NMEA_sentences) <= 0:
-                    NMEA_sentences = None
-
-                # processo gli UBX
-                msg = "".join(msg2bits(splitBytes(msg)))
-                
-                messaggioUBX = "".join(msg2bits([UBXMessage.SYNC_CHAR_1, UBXMessage.SYNC_CHAR_2]))  # b5 62
-                posUBX = strfind(messaggioUBX, msg)
-
-                # variabili che conterranno quello che andrò ad esportare
-                data = []
-                
-                if len(posUBX) > 0:
-                    pos = posUBX[0]
-                else:
-                    return (None, NMEA_sentences)
-
-                # inizio la fase di decodifica del messaggio
-                i = 0
-
-                # controllo che io abbia UBX o NMEA nei primi 2/3 frammenti
-                while (pos + 16) <= len(msg):
-                    # controllo se ho l'header UBX
-                    if msg[pos:(pos + 16)] == messaggioUBX:
-                        # aumento il contatore
-                        i += 1
-                        # salto i primi due bytes di intestazione del messaggio
-                        pos += 16
-                        # ora dovrei avere classe, id e lunghezza del payload
-                        if (pos + 32) <= len(msg):
-                            # prendo la classe
-                            classId = int(msg[pos:(pos + 8)], 2).to_bytes(1, byteorder='big')
-                            pos += 8
-                            # prendo l'id
-                            msgId = int(msg[pos:(pos + 8)], 2).to_bytes(1, byteorder='big')
-                            pos += 8
-
-                            # controllo che il messaggio non sia troncato
-                            if (len(find(posUBX, pos, 1)) > 0):
-                                f = find(posUBX, pos, 1)[0]
-                            else:
-                                f = 0
-                            posNext = posUBX[f]
-                            posRem = posNext - pos
-
-                            # estraggo la lunghezza del payload (2 byte)
-                            LEN1 = int(msg[pos:(pos + 8)], 2)
-                            pos += 8
-                            LEN2 = int(msg[pos:(pos + 8)], 2)
-                            pos += 8
-
-                            LEN = LEN1 + (LEN2 * pow(2, 8))
-
-                            if LEN != 0:
-                                # subito dopo la lunghezza ho il payload lungo LEN, poi due byte di fine stream (checksum)
-                                if (pos + (8 * LEN) + 16) <= len(msg):
-                                    # calcolo il checksum
-                                    CK_A = 0
-                                    CK_B = 0
-
-                                    slices = []
-
-                                    j = pos - 32
-                                    while j < (pos + 8 * LEN):
-                                        t = msg[j:(j + 8)]
-                                        slices.append(int(msg[j:(j + 8)], 2))
-                                        j += 8
-
-                                    for r in range(len(slices)):
-                                        CK_A = CK_A + slices[r]
-                                        CK_B = CK_B + CK_A
-
-                                    CK_A = CK_A % 256
-                                    CK_B = CK_B % 256
-                                    CK_A_rec = int(msg[(pos + 8 * LEN):(pos + 8 * LEN + 8)], 2)
-                                    CK_B_rec = int(msg[(pos + 8 * LEN + 8):(pos + 8 * LEN + 16)], 2)
-
-                                    # controllo se il checksum corrisponde
-                                    if CK_A == CK_A_rec and CK_B == CK_B_rec:
-                                        s = msg[pos:(pos + (8 * LEN))]
-                                        nB = math.ceil(len(s) / 8)
-                                        MSG = int(s, 2).to_bytes(nB, 'little')
-                                        MSG = splitBytes(MSG)
-                                        # posso analizzare il messaggio nel dettaglio, esaminando il payload con l'opportuna funzione in base a id, classe
-                                        if classId == b"\x01":  # NAV
-                                            if msgId == b"\x24":  # NAV-TIMEBDS
-                                                data.append(decode_NAV_TIMEBDS(MSG))
-                                            elif msgId == b"\x25":  # NAV-TIMEGAL
-                                                data.append(decode_NAV_TIMEGAL(MSG))
-                                            elif msgId == b"\x20":  # NAV-TIMEGPS
-                                                data.append(decode_NAV_TIMEGPS(MSG))
-                                            elif msgId == b"\x23":  # NAV-TIMEGLO
-                                                data.append(decode_NAV_TIMEGLO(MSG))
-                                            elif msgId == b"\x21":  # NAV-TIMEUTC
-                                                data.append(decode_NAV_TIMEUTC(MSG))
-                                        elif classId == b"\x02": # RXM
-                                            if msgId == b"\x15": # RXM-RAWX
-                                                data.append(decode_RXM_RAWX(MSG))
-                                    else:
-                                        self.printLog("Checksum error.")
-                                        # salto il messaggio troncato
-                                        if posRem > 0 and (posRem % 8) != 0 and 8 * (LEN + 4) > posRem:
-                                            self.printLog("Truncated UBX message, detected and skipped")
-                                            pos = posNext
-                                            continue
-
-                                    pos += 8 * LEN
-                                    pos += 16
-                                else:
-                                    break
-                        else:
-                            break
-                    else:
-                        # TODO: provare questo...
-                        # controllo se ci sono altri pacchetti
-                        # pos = pos_UBX(find(pos_UBX > pos, 1));
-                        # if (isempty(pos)), break, end;
-                        if len(find(posUBX, pos, 1)) > 0:
-                            p = find(posUBX, pos, 1)[0]
-                            if len(posUBX) >= p:
-                                pos = posUBX[p]
-                        else:
-                            break
-                return (data, NMEA_sentences)
-            except Exception as error:
-                print(error)
-                self.printLog("Print Error. Check console.")
 
     # --------------- serial FUNCTION ---------------
     def open_connection(self):

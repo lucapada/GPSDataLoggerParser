@@ -28,7 +28,7 @@ for s in nmea_strings:
     formatted_datetime = nmea_datetime.strftime("%Y-%m-%d %H:%M:%S")
     # scrivo nei files
     nmea_times_file.write(formatted_datetime + "\t" + timestamp + "\n")
-    nmea_file.write(s)
+    nmea_file.write(s[:-1])
 
 nmea_file.close()
 nmea_times_file.close()
